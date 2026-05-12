@@ -77,6 +77,15 @@ struct CAMERA {
 	float sizeX, sizeY;
 };
 
+#define ENEMY_NORMAL 0
+#define ENEMY_SHIELD 1
+#define ENEMY_FLYING 2
+
+struct ENEMY {
+	float x, y;
+	int type;
+};
+
 struct FLOOR {
 	int y = 700;
 };
@@ -207,25 +216,30 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 void CALLBACK GameUpdateProc(HWND hWnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
 {
+	// 베를레 적분법; 위치 = 현재 위치 + (현재 위치 - 이전 위치) * 저항 + 가속도
 	float tempX = mc.x;
 	float tempY = mc.y;
+	// 가속도 설정, Y방향 중력 가속도 반영
 	mc.accX = 0, mc.accY = GRAVITY;
-
+	// 왼쪽 이동
 	if (keys['A']) {
 		mc.accX -= MCMOVESPEED;
 	}
+	// 오른쪽 이동
 	if (keys['D']) {
 		mc.accX += MCMOVESPEED;
 	}
+	// 점프
 	if (keys[VK_SPACE] && mc.isGrounded) {
 		mc.oldY = mc.y + MCJUMPACC;
 		mc.isGrounded = false;
 	}
-
+	// 로프 매달려 있을 때 저항 줄임
 	if (mc.isSwing) mc.x = mc.x + (mc.x - mc.oldX) * 0.99 + mc.accX;
 	else mc.x = mc.x + (mc.x - mc.oldX) * 0.88 + mc.accX;
 	mc.y = mc.y + (mc.y - mc.oldY) + mc.accY;
 	
+	// 로프 걸려있을 때 위치 보정
 	if (mc.isSwing) {
 		float centerX = mc.x + 25;
 		float centerY = mc.y + 25;
@@ -240,10 +254,10 @@ void CALLBACK GameUpdateProc(HWND hWnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTim
 			mc.y = targetcenterY - 25;
 		}
 	}
-
+	// 이전 위치 갱신
 	mc.oldX = tempX;
 	mc.oldY = tempY;
-
+	// (임시) 바닥 체크
 	if (mc.y > fl.y - 50) {
 		mc.y = fl.y - 50;
 		if (!mc.isSwing) mc.oldY = mc.y;
@@ -252,6 +266,7 @@ void CALLBACK GameUpdateProc(HWND hWnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTim
 	InvalidateRect(hWnd, NULL, FALSE);
 }
 
+// 플랫폼 직사각형이 카메라 안에 있는가
 bool shouldPaint(int i) {
 	RECT pfrt = { cam.x, cam.y, cam.x + cam.sizeX, cam.y + cam.sizeY };
 	POINT pfpt[4] =
