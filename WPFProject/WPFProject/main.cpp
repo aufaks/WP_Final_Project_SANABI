@@ -52,19 +52,22 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 #define MAXROPELEN 500
 
 void CALLBACK GameUpdateProc(HWND hWnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime);
-bool shouldPaint(int i);
+
+#define FACING_LEFT 0
+#define FACING_RIGHT 1
 
 struct MAINCHARACTER{
 	float x, y;
 	float oldX, oldY, accX, accY;
 	int hp;
-	bool isSwing, isGrounded;
+	bool isSwing, isGrounded, facingDirection;
 	MAINCHARACTER() {
 		x = 100, y = 500;
 		oldX = 100, oldY = 500;
 		accX = 0, accY = 0;
 		hp = 4;
 		isSwing = false, isGrounded = false;
+		facingDirection = FACING_RIGHT;
 	}
 };
 
@@ -89,8 +92,11 @@ struct ENEMY {
 struct FLOOR {
 	int y = 700;
 };
+// 임시값
+#define PLATFORMMAXROW 1000
+#define PLATFORMMAXCOL 1000
+#define PLATFORMSIZE 50
 
-#define PLATFORMNUM 100
 #define WALL_TOP 0
 #define WALL_RIGHT 1
 #define WALL_BOTTOM 2
@@ -101,15 +107,19 @@ struct FLOOR {
 #define WALL_DAMAGE 4
 
 struct PLATFORM {
-	float x, y, w, h;
+	bool isPlatform;
 	int type[4];
+	PLATFORM() {
+		isPlatform = false;
+	}
 };
 
 MAINCHARACTER mc;
 ANCHOR anch;
 CAMERA cam;
+PLATFORM platforms[PLATFORMMAXROW][PLATFORMMAXCOL];
+
 FLOOR fl;
-PLATFORM platforms[PLATFORMNUM];
 
 bool keys[256] = { 0 };
 
@@ -122,17 +132,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	static int mx, my;
 
 	float dx, dy;
+	static int HowManyRow, HowManyCol;
 
 	switch (uMsg) {
 	case WM_CREATE:
 		GetClientRect(hWnd, &rt);
 		cam.x = 0, cam.y = 0;
 		cam.sizeX = rt.right, cam.sizeY = rt.bottom;
+		HowManyRow = cam.sizeY / PLATFORMSIZE + 1, HowManyCol = cam.sizeX / PLATFORMSIZE + 1;
 		SetTimer(hWnd, 't', 10, GameUpdateProc);
 		break;
 	case WM_SIZE:
 		GetClientRect(hWnd, &rt);
 		cam.sizeX = rt.right, cam.sizeY = rt.bottom;
+		HowManyRow = cam.sizeY / PLATFORMSIZE + 1, HowManyCol = cam.sizeX / PLATFORMSIZE + 1;
 		break;
 	case WM_KEYDOWN:
 		keys[wParam] = true;
@@ -165,38 +178,58 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		HBRUSH hBrush, oldBrush;
 		Rectangle(mDC, rt.left, rt.top, rt.right, rt.bottom);
 
-		// 플랫폼
-		for (int i = 0; i < PLATFORMNUM; i++) {
-			if (!shouldPaint(i)) continue;
-			for (int k = 0; k < 4; k++) {
-				if (platforms[i].type[k] == WALL_CONNECT) {
+		// ==================================================
+		// 플랫폼 그리기
+		// ==================================================
+		int camrow, camcol;
+		// 카메라 행, 열 구하기
+		camrow = cam.y / PLATFORMSIZE, camcol = cam.x / PLATFORMSIZE;
+		// 카메라 안쪽 플랫폼만 그리기
+		for (int i = camrow; i < camrow + HowManyRow; i++) {
+			for (int j = camcol; j < camcol + HowManyCol; j++) {
+				// 플랫폼이 아니면 (비어있는 공간이면) 패스
+				if (platforms[i][j].isPlatform == false) continue;
 
+				// 행, 열로 좌표 구하기
+				float x = j * PLATFORMSIZE, y = i * PLATFORMSIZE;
+
+				// 검은색 정사각형 땅 그리기
+				hBrush = CreateSolidBrush(RGB(50, 50, 50));
+				SelectObject(mDC, hBrush);
+				Rectangle(mDC, x - cam.x, y - cam.y, x + PLATFORMSIZE - cam.x, y + PLATFORMSIZE - cam.y);
+				DeleteObject(hBrush);
+
+				// 플랫폼 겉 면 그리기 (우선순위 - CANHOOK이 가장 위에 보이게 마지막에 그림)
+				for (int k = 0; k < 4; k++) {
+					if (platforms[i][j].type[k] == WALL_CANNOTHOOK) {
+
+					}
+					else if (platforms[i][j].type[k] == WALL_DAMAGE) {
+
+					}
+				}
+				for (int k = 0; k < 4; k++) {
+					if (platforms[i][j].type[k] == WALL_CANHOOK) {
+
+					}
 				}
 			}
-			for (int k = 0; k < 4; k++) {
-				if (platforms[i].type[k] == WALL_CANNOTHOOK) {
-
-				}
-				else if (platforms[i].type[k] == WALL_DAMAGE) {
-
-				}
-			}
-			for (int k = 0; k < 4; k++) {
-				if (platforms[i].type[k] == WALL_CANHOOK) {
-
-				}
-			}
-
 		}
+		
 		// 땅 (임시)
 		MoveToEx(mDC, 0, fl.y - cam.y, NULL);
 		LineTo(mDC, cam.sizeX, fl.y - cam.y);
+		// ==================================================
 		// 주인공
+		// ==================================================
 		hBrush = CreateSolidBrush(RGB(255, 0, 0));
 		SelectObject(mDC, hBrush);
 		Ellipse(mDC, mc.x - cam.x, mc.y - cam.y, mc.x - cam.x + 50, mc.y - cam.y + 50);
 		DeleteObject(hBrush);
-		// 사슬
+
+		// ==================================================
+		// 사슬 그리기
+		// ==================================================
 		if (mc.isSwing) {
 			MoveToEx(mDC, mc.x + 25 - cam.x, mc.y + 25 - cam.y, NULL);
 			LineTo(mDC, anch.x - cam.x, anch.y - cam.y);
@@ -264,16 +297,4 @@ void CALLBACK GameUpdateProc(HWND hWnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTim
 		mc.isGrounded = true;
 	}
 	InvalidateRect(hWnd, NULL, FALSE);
-}
-
-// 플랫폼 직사각형이 카메라 안에 있는가
-bool shouldPaint(int i) {
-	RECT pfrt = { cam.x, cam.y, cam.x + cam.sizeX, cam.y + cam.sizeY };
-	POINT pfpt[4] =
-	{ {platforms[i].x, platforms[i].y}, {platforms[i].x + platforms[i].h, platforms[i].y}
-	,{platforms[i].x + platforms[i].w, platforms[i].y + platforms[i].h},{platforms[i].x, platforms[i].y + platforms[i].h} };
-	for (int j = 0; j < 4; j++) {
-		if (PtInRect(&pfrt, pfpt[j])) return true;
-	}
-	return false;
 }
