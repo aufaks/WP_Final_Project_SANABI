@@ -60,13 +60,15 @@ struct MAINCHARACTER{
 	float x, y;
 	float oldX, oldY, accX, accY;
 	int hp;
-	bool isSwing, isGrounded, facingDirection;
+	bool isSwing, onWall, isRunning, isStopping, isDamaged, isJumping, isSwingJumping;
+	bool isGrounded, facingDirection;
 	MAINCHARACTER() {
 		x = 100, y = 500;
 		oldX = 100, oldY = 500;
 		accX = 0, accY = 0;
 		hp = 4;
-		isSwing = false, isGrounded = false;
+		isGrounded = false;
+		isSwing = false, onWall = false, isRunning = false, isStopping = false, isDamaged = false, isJumping = false, isSwingJumping = false;
 		facingDirection = FACING_RIGHT;
 	}
 };
