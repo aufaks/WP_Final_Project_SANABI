@@ -55,12 +55,21 @@ void CALLBACK GameUpdateProc(HWND hWnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTim
 
 #define FACING_LEFT 0
 #define FACING_RIGHT 1
+#define ISSTANDING 0
+#define ISRUNNING 1
+#define ISSWINGING 2
+#define ISJUMPING 3
+#define ISSWINGJUMPING 4
+#define ISSTOPPING 5
+#define ISDAMAGED 6
+#define ISFALLING 7
+#define ONWALL 8
 
 struct MAINCHARACTER{
 	float x, y;
 	float oldX, oldY, accX, accY;
 	int hp;
-	bool isSwing, onWall, isRunning, isStopping, isDamaged, isJumping, isSwingJumping;
+	int state;
 	bool isGrounded, facingDirection;
 	MAINCHARACTER() {
 		x = 100, y = 500;
@@ -68,7 +77,7 @@ struct MAINCHARACTER{
 		accX = 0, accY = 0;
 		hp = 4;
 		isGrounded = false;
-		isSwing = false, onWall = false, isRunning = false, isStopping = false, isDamaged = false, isJumping = false, isSwingJumping = false;
+		state = ISSTANDING;
 		facingDirection = FACING_RIGHT;
 	}
 };
@@ -161,10 +170,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		dx = mc.x + 25 - anch.x;
 		dy = mc.y + 25 - anch.y;
 		anch.length = sqrt(dx * dx + dy * dy);
-		if (anch.length > 25) mc.isSwing = true;
+		if (anch.length > 25) mc.state = ISSWINGING;
 		break;
 	case WM_LBUTTONUP:
-		mc.isSwing = false;
+		mc.state = ISSWINGING;
 		break;
 	case WM_MOUSEMOVE:
 		mx = LOWORD(lParam), my = HIWORD(lParam);
@@ -232,7 +241,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		// ==================================================
 		// 사슬 그리기
 		// ==================================================
-		if (mc.isSwing) {
+		if (mc.state == ISSWINGING) {
 			MoveToEx(mDC, mc.x + 25 - cam.x, mc.y + 25 - cam.y, NULL);
 			LineTo(mDC, anch.x - cam.x, anch.y - cam.y);
 		}
@@ -270,12 +279,12 @@ void CALLBACK GameUpdateProc(HWND hWnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTim
 		mc.isGrounded = false;
 	}
 	// 로프 매달려 있을 때 저항 줄임
-	if (mc.isSwing) mc.x = mc.x + (mc.x - mc.oldX) * 0.99 + mc.accX;
+	if (mc.state == ISSWINGING) mc.x = mc.x + (mc.x - mc.oldX) * 0.99 + mc.accX;
 	else mc.x = mc.x + (mc.x - mc.oldX) * 0.88 + mc.accX;
 	mc.y = mc.y + (mc.y - mc.oldY) + mc.accY;
 	
 	// 로프 걸려있을 때 위치 보정
-	if (mc.isSwing) {
+	if (mc.state == ISSWINGING) {
 		float centerX = mc.x + 25;
 		float centerY = mc.y + 25;
 		float dx = centerX - anch.x;
@@ -295,7 +304,7 @@ void CALLBACK GameUpdateProc(HWND hWnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTim
 	// (임시) 바닥 체크
 	if (mc.y > fl.y - 50) {
 		mc.y = fl.y - 50;
-		if (!mc.isSwing) mc.oldY = mc.y;
+		if (!mc.state == ISSWINGING) mc.oldY = mc.y;
 		mc.isGrounded = true;
 	}
 	InvalidateRect(hWnd, NULL, FALSE);
