@@ -122,8 +122,8 @@ struct FLOOR {
 	int y = 700;
 };
 
-#define PLATFORMMAXROW 1000
-#define PLATFORMMAXCOL 500
+#define PLATFORMMAXROW 500
+#define PLATFORMMAXCOL 1000
 #define PLATFORMSIZE 50
 
 #define WALL_TOP 0
