@@ -2,8 +2,12 @@
 #include <tchar.h>
 #include <random>
 #include <math.h>
+#include <mmsystem.h>
+#pragma comment(lib, "winmm.lib")
 //#include "resource.h"
 using namespace std;
+
+void  GameUpdateProc(HWND hWnd);
 
 random_device rd;
 mt19937 gen(rd());
@@ -39,9 +43,21 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
 
-	while (GetMessage(&Message, 0, 0, 0)) {
-		TranslateMessage(&Message);
-		DispatchMessage(&Message);
+	DWORD lastTime = timeGetTime();
+	while (1) {
+		if (PeekMessage(&Message, NULL, 0, 0, PM_REMOVE)) {
+			if (Message.message == WM_QUIT)
+				break;
+			TranslateMessage(&Message);
+			DispatchMessage(&Message);
+		}
+		else {
+			DWORD currentTime = timeGetTime();
+			if (currentTime - lastTime >= 10) {
+				GameUpdateProc(hWnd);
+			}
+			Sleep(1);
+		}
 	}
 	return Message.wParam;
 }
@@ -49,9 +65,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 #define GRAVITY 0.9
 #define MCMOVESPEED 0.9
 #define MCJUMPACC 16
-#define MAXROPELEN 500
-
-void CALLBACK GameUpdateProc(HWND hWnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime);
+#define MAXROPELEN 300
 
 #define FACING_LEFT 0
 #define FACING_RIGHT 1
@@ -159,7 +173,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		cam.x = 0, cam.y = 0;
 		cam.sizeX = rt.right, cam.sizeY = rt.bottom;
 		HowManyRow = (cam.sizeY / PLATFORMSIZE) + 1, HowManyCol = (cam.sizeX / PLATFORMSIZE) + 1;
-		SetTimer(hWnd, 't', 10, GameUpdateProc);
 		break;
 	case WM_SIZE:
 		GetClientRect(hWnd, &rt);
@@ -283,7 +296,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	return DefWindowProc(hWnd, uMsg, wParam, lParam);
 }
 
-void CALLBACK GameUpdateProc(HWND hWnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
+void GameUpdateProc(HWND hWnd)
 {
 	// 베를레 적분법; 위치 = 현재 위치 + (현재 위치 - 이전 위치) * 저항 + 가속도
 	float tempX = mc.x;
