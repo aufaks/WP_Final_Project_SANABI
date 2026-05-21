@@ -55,27 +55,31 @@ void CALLBACK GameUpdateProc(HWND hWnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTim
 
 #define FACING_LEFT 0
 #define FACING_RIGHT 1
+
 #define ISSTANDING 0
-#define ISRUNNING 1
-#define ISSWINGING 2
-#define ISJUMPING 3
+#define ISSWINGING 1
+#define ISJUMPING 2
+#define ISLANDING 3
 #define ISSWINGJUMPING 4
-#define ISSTOPPING 5
-#define ISDAMAGED 6
-#define ISFALLING 7
-#define ONWALL 8
+#define ISSTARTINGRUN 5
+#define ISRUNNING 6
+#define ISSTOPPING 7
+#define ISDAMAGED 8
+#define ISFALLING 9
+#define ONWALL 10
 
 struct MAINCHARACTER{
 	float x, y;
 	float oldX, oldY, accX, accY;
 	int hp;
 	int state;
-	bool isGrounded, facingDirection;
+	bool isGrounded, facingDirection, canjump;
 	MAINCHARACTER() {
 		x = 100, y = 500;
 		oldX = 100, oldY = 500;
 		accX = 0, accY = 0;
 		hp = 4;
+		canjump = false;
 		isGrounded = false;
 		state = ISSTANDING;
 		facingDirection = FACING_RIGHT;
@@ -105,7 +109,7 @@ struct FLOOR {
 };
 // 임시값
 #define PLATFORMMAXROW 1000
-#define PLATFORMMAXCOL 1000
+#define PLATFORMMAXCOL 500
 #define PLATFORMSIZE 50
 
 #define WALL_TOP 0
@@ -122,6 +126,7 @@ struct PLATFORM {
 	int type[4];
 	PLATFORM() {
 		isPlatform = false;
+		for (int i = 0; i < 4; i++) type[i] = WALL_CONNECT;
 	}
 };
 
@@ -140,9 +145,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	HDC hDC, mDC;
 	HBITMAP hBitmap;
 	RECT rt;
-	static int mx, my;
 
+	// 마우스 위치
+	static float mx, my;
+	// 사슬 거리 계산용 x,y
 	float dx, dy;
+	// 카메라 안에서 그려야 할 행, 열 개수
 	static int HowManyRow, HowManyCol;
 
 	switch (uMsg) {
@@ -150,7 +158,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		GetClientRect(hWnd, &rt);
 		cam.x = 0, cam.y = 0;
 		cam.sizeX = rt.right, cam.sizeY = rt.bottom;
-		HowManyRow = cam.sizeY / PLATFORMSIZE + 1, HowManyCol = cam.sizeX / PLATFORMSIZE + 1;
+		HowManyRow = (cam.sizeY / PLATFORMSIZE) + 1, HowManyCol = (cam.sizeX / PLATFORMSIZE) + 1;
 		SetTimer(hWnd, 't', 10, GameUpdateProc);
 		break;
 	case WM_SIZE:
@@ -160,20 +168,34 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		break;
 	case WM_KEYDOWN:
 		keys[wParam] = true;
+		// 주인공 상태 - 달리기 시작
+		if ((wParam == 'A' || wParam == 'D') && mc.state != ISSWINGING && mc.isGrounded) {
+			mc.state = ISSTARTINGRUN;
+		}
+		if (wParam == VK_SPACE) {
+			mc.canjump = true;
+		}
+
 		break;
 	case WM_KEYUP:
 		keys[wParam] = false;
+		// 주인공 상태 - 달리기 멈추기
+		if ((wParam == 'A' || wParam == 'D') && mc.state != ISSWINGING && mc.isGrounded) {
+			mc.state = ISSTOPPING;
+		}
+
 		break;
 	case WM_LBUTTONDOWN:			// 좌클릭
 		mx = LOWORD(lParam), my = HIWORD(lParam);
 		anch.x = mx + cam.x, anch.y = my + cam.y;
-		dx = mc.x + 25 - anch.x;
-		dy = mc.y + 25 - anch.y;
+		dx = mc.x + 15 - anch.x;
+		dy = mc.y + 15 - anch.y;
 		anch.length = sqrt(dx * dx + dy * dy);
-		if (anch.length > 25) mc.state = ISSWINGING;
+		if (anch.length > 15) mc.state = ISSWINGING;
 		break;
 	case WM_LBUTTONUP:
-		mc.state = ISSWINGING;
+		if ((mc.x - mc.oldX) * (mc.x - mc.oldX) > 100) mc.state = ISSWINGJUMPING;
+		else mc.state = ISFALLING;
 		break;
 	case WM_MOUSEMOVE:
 		mx = LOWORD(lParam), my = HIWORD(lParam);
@@ -185,8 +207,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		hBitmap = CreateCompatibleBitmap(hDC, rt.right, rt.bottom);
 		SelectObject(mDC, (HBITMAP)hBitmap);
 
-		HPEN hPen, oldPen;
-		HBRUSH hBrush, oldBrush;
+		HPEN hPen;
+		HBRUSH hBrush;
 		Rectangle(mDC, rt.left, rt.top, rt.right, rt.bottom);
 
 		// ==================================================
@@ -231,18 +253,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		MoveToEx(mDC, 0, fl.y - cam.y, NULL);
 		LineTo(mDC, cam.sizeX, fl.y - cam.y);
 		// ==================================================
-		// 주인공
+		// 주인공 그리기
 		// ==================================================
 		hBrush = CreateSolidBrush(RGB(255, 0, 0));
 		SelectObject(mDC, hBrush);
-		Ellipse(mDC, mc.x - cam.x, mc.y - cam.y, mc.x - cam.x + 50, mc.y - cam.y + 50);
+		Ellipse(mDC, mc.x - cam.x, mc.y - cam.y, mc.x - cam.x + 30, mc.y - cam.y + 30);
 		DeleteObject(hBrush);
+		TCHAR tchar[10];
+		wsprintf(tchar, L"%d", mc.state);
+		TextOut(mDC, 10, 10, tchar, lstrlen(tchar));
 
 		// ==================================================
 		// 사슬 그리기
 		// ==================================================
 		if (mc.state == ISSWINGING) {
-			MoveToEx(mDC, mc.x + 25 - cam.x, mc.y + 25 - cam.y, NULL);
+			MoveToEx(mDC, mc.x + 15 - cam.x, mc.y + 15 - cam.y, NULL);
 			LineTo(mDC, anch.x - cam.x, anch.y - cam.y);
 		}
 
@@ -267,26 +292,34 @@ void CALLBACK GameUpdateProc(HWND hWnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTim
 	mc.accX = 0, mc.accY = GRAVITY;
 	// 왼쪽 이동
 	if (keys['A']) {
+		mc.facingDirection = FACING_LEFT;
 		mc.accX -= MCMOVESPEED;
 	}
 	// 오른쪽 이동
 	if (keys['D']) {
+		mc.facingDirection = FACING_RIGHT;
 		mc.accX += MCMOVESPEED;
 	}
 	// 점프
-	if (keys[VK_SPACE] && mc.isGrounded) {
+	if (mc.canjump && mc.isGrounded) {
 		mc.oldY = mc.y + MCJUMPACC;
 		mc.isGrounded = false;
+		mc.canjump = false;
+		// 주인공 상태 변화 - 점프 중
+		if (mc.state != ISSWINGING) mc.state = ISJUMPING;
 	}
 	// 로프 매달려 있을 때 저항 줄임
-	if (mc.state == ISSWINGING) mc.x = mc.x + (mc.x - mc.oldX) * 0.99 + mc.accX;
-	else mc.x = mc.x + (mc.x - mc.oldX) * 0.88 + mc.accX;
+	float friction;
+	if (mc.state == ISSWINGING) friction = 0.99;
+	else friction = 0.88;
+	// 베를레 적분 위치 계산
+	mc.x = mc.x + (mc.x - mc.oldX) * friction + mc.accX;
 	mc.y = mc.y + (mc.y - mc.oldY) + mc.accY;
 	
 	// 로프 걸려있을 때 위치 보정
 	if (mc.state == ISSWINGING) {
-		float centerX = mc.x + 25;
-		float centerY = mc.y + 25;
+		float centerX = mc.x + 15;
+		float centerY = mc.y + 15;
 		float dx = centerX - anch.x;
 		float dy = centerY - anch.y;
 		float currentDist = sqrt(dx * dx + dy * dy);
@@ -294,17 +327,31 @@ void CALLBACK GameUpdateProc(HWND hWnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTim
 			float ratio = anch.length / currentDist;
 			float targetcenterX = anch.x + dx * ratio;
 			float targetcenterY = anch.y + dy * ratio;
-			mc.x = targetcenterX - 25;
-			mc.y = targetcenterY - 25;
+			mc.x = targetcenterX - 15;
+			mc.y = targetcenterY - 15;
 		}
 	}
-	// 이전 위치 갱신
+
+	// 주인공 상태 - 떨어지는 중
+	if ((mc.y - mc.oldY) > 0 && mc.state != ISSWINGING) {
+		mc.state = ISFALLING;
+	}
+	// 주인공 상태 - 가만히 서있음
+	if ((mc.x - mc.oldX) == 0 && mc.isGrounded && mc.state != ISSWINGING && mc.state != ISLANDING) {
+		//mc.state = ISSTANDING;
+	}
+
+	// 이전 위치 oldX, oldY 갱신
 	mc.oldX = tempX;
 	mc.oldY = tempY;
+
 	// (임시) 바닥 체크
-	if (mc.y > fl.y - 50) {
-		mc.y = fl.y - 50;
-		if (!mc.state == ISSWINGING) mc.oldY = mc.y;
+	if (mc.y > fl.y - 30) {
+		mc.y = fl.y - 30;
+		if (mc.state == ISSWINGING) mc.oldY = mc.y;
+		if (mc.state == ISFALLING) {
+			mc.state = ISLANDING;
+		}
 		mc.isGrounded = true;
 	}
 	InvalidateRect(hWnd, NULL, FALSE);
