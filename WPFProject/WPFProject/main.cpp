@@ -121,7 +121,7 @@ struct ENEMY {
 struct FLOOR {
 	int y = 700;
 };
-// ÀÓ½Ã°ª
+
 #define PLATFORMMAXROW 1000
 #define PLATFORMMAXCOL 500
 #define PLATFORMSIZE 50
@@ -130,6 +130,7 @@ struct FLOOR {
 #define WALL_RIGHT 1
 #define WALL_BOTTOM 2
 #define WALL_LEFT 3
+
 #define WALL_CONNECT 1
 #define WALL_CANHOOK 2
 #define WALL_CANNOTHOOK 3
