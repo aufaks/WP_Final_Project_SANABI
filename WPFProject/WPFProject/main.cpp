@@ -194,7 +194,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	case WM_KEYUP:
 		keys[wParam] = false;
 		// 주인공 상태 - 달리기 멈추기
-		if ((wParam == 'A' || wParam == 'D') && mc.state != ISSWINGING && mc.isGrounded) {
+		if (wParam == 'A' && mc.facingDirection == FACING_LEFT && mc.state == ISRUNNING && mc.isGrounded) {
+			mc.state = ISSTOPPING;
+		}
+		else if (wParam == 'D' && mc.facingDirection == FACING_RIGHT && mc.state == ISRUNNING && mc.isGrounded) {
 			mc.state = ISSTOPPING;
 		}
 
