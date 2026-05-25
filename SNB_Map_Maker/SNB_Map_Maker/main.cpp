@@ -14,8 +14,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 	MSG Message;
 	WNDCLASSEX WndClass;
 	g_hinst = hInstance;
-	LPCTSTR lpszClass = L"My Window Class";
-	LPCTSTR lpszWindowName = L"Window Programming Lab";
+	LPCTSTR lpszClass = L"SNB_Map_Maker";
+	LPCTSTR lpszWindowName = L"SNB_Map_Maker";
 
 	WndClass.cbSize = sizeof(WndClass);
 	WndClass.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
@@ -48,6 +48,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 #define WALL_CANHOOK 2
 #define WALL_CANNOTHOOK 3
 #define WALL_DAMAGE 4
+
+#define PLATFORMMAXROW 500
+#define PLATFORMMAXCOL 1000
+#define PLATFORMSIZE 50
 
 struct PLATFORM {
 	bool isPlatform;
@@ -97,8 +101,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		}
 		else if (wParam == 'P') {
 			ofstream out{ "Platform_Info.txt" };
-			for (int i = 0; i < 500; i++) {
-				for (int j = 0; j < 1000; j++) {
+			for (int i = 0; i < PLATFORMMAXROW; i++) {
+				for (int j = 0; j < PLATFORMMAXCOL; j++) {
 					int pinfo;
 					if (p[i][j].isPlatform) pinfo = p[i][j].type[0] * 1000 + p[i][j].type[1] * 100 + p[i][j].type[2] * 10 + p[i][j].type[3];
 					else pinfo = 0;
@@ -109,8 +113,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		}
 		else if (wParam == 'L') {
 			ifstream in{ "Platform_Info.txt" };
-			for (int i = 0; i < 500; i++) {
-				for (int j = 0; j < 1000; j++) {
+			for (int i = 0; i < PLATFORMMAXROW; i++) {
+				for (int j = 0; j < PLATFORMMAXCOL; j++) {
 					int pinfo;
 					in >> pinfo;
 					if (pinfo == 0) p[i][j].isPlatform = 0;
@@ -169,7 +173,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		break;
 	case WM_LBUTTONDOWN:			// 좌클릭
 		mx = LOWORD(lParam), my = HIWORD(lParam);
-		if (mx < 1000 && my < 500) {
+		if (mx < PLATFORMMAXCOL && my < PLATFORMMAXROW) {
 			lb = 1;
 			srow = my / 25, scol = mx / 25;
 			srow += c.r, scol += c.c;
@@ -179,7 +183,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		break;
 	case WM_RBUTTONDOWN:			// 우클릭
 		mx = LOWORD(lParam), my = HIWORD(lParam);
-		if (mx < 1000 && my < 500) {
+		if (mx < PLATFORMMAXCOL && my < PLATFORMMAXROW) {
 			rb = 1;
 			srow = my / 25, scol = mx / 25;
 			srow += c.r, scol += c.c;
@@ -198,7 +202,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	case WM_MOUSEMOVE:
 		if (lb) {
 			mx = LOWORD(lParam), my = HIWORD(lParam);
-			if (mx < 1000 && my < 500) {
+			if (mx < PLATFORMMAXCOL && my < PLATFORMMAXROW) {
 				srow = my / 25, scol = mx / 25;
 				srow += c.r, scol += c.c;
 				p[srow][scol].isPlatform = 1;
@@ -206,7 +210,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		}
 		else if (rb) {
 			mx = LOWORD(lParam), my = HIWORD(lParam);
-			if (mx < 1000 && my < 500) {
+			if (mx < PLATFORMMAXCOL && my < PLATFORMMAXROW) {
 				srow = my / 25, scol = mx / 25;
 				srow += c.r, scol += c.c;
 				p[srow][scol].isPlatform = 0;
@@ -231,11 +235,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		SelectObject(mDC, hPen);
 		for (int i = 0; i <= 20; i++) {
 			MoveToEx(mDC, 0, i * 25, NULL);
-			LineTo(mDC, 1000, i * 25);
+			LineTo(mDC, PLATFORMMAXCOL, i * 25);
 		}
 		for (int i = 0; i <= 40; i++) {
 			MoveToEx(mDC, i * 25, 0, NULL);
-			LineTo(mDC, i * 25, 500);
+			LineTo(mDC, i * 25, PLATFORMMAXROW);
 		}
 
 		// 블럭 그리기
