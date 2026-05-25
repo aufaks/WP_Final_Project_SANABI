@@ -44,13 +44,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 //==============================================================
 // CANHOOK - 노랑 // CANNOTHOOK - 초록 // DAMAGE - 빨강
 //==============================================================
+#define WALL_CONNECT 1
+#define WALL_CANHOOK 2
+#define WALL_CANNOTHOOK 3
+#define WALL_DAMAGE 4
+
 struct PLATFORM {
 	bool isPlatform;
-	// 0: connected 1: canhook 2:cannothook 3: damage
+	// 0: connected 1: canhook 2:cannothook 3: damage  --> WPFP project와 통일하기로	1:connect, 2:canhook, 3:cannothook, 4:damage
 	int type[4];
 	PLATFORM() {
 		isPlatform = false;
-		for (int i = 0; i < 4; i++) type[i] = 4;
+		for (int i = 0; i < 4; i++) type[i] = 1;
 	}
 };
 
@@ -119,6 +124,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				}
 			}
 		}
+		//카메라 시점 이동 wasd
 		else if (wParam == 'W') {
 			if (c.r > 0) c.r -= 10;
 		}
@@ -132,7 +138,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			if (c.c < 960) c.c += 20;
 		}
 		else if (wParam == VK_UP) {
-			sside = 0;
+			sside = 0;	
 		}
 		else if (wParam == VK_RIGHT) {
 			sside = 1;
@@ -143,19 +149,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		else if (wParam == VK_LEFT) {
 			sside = 3;
 		}
-
-		if (srow >= 0 && scol >= 0) {
-			if (wParam == '0') {
-				p[srow][scol].type[sside] = 4;
-			}
-			else if (wParam == '1') {
-				p[srow][scol].type[sside] = 1;
+												
+		if (srow >= 0 && scol >= 0) {   	// WPFP project와 통일하기로	1:connect, 2:canhook, 3:cannothook, 4:damage
+			if (wParam == '1') {
+				p[srow][scol].type[sside] = 1; 
 			}
 			else if (wParam == '2') {
 				p[srow][scol].type[sside] = 2;
 			}
 			else if (wParam == '3') {
 				p[srow][scol].type[sside] = 3;
+			}
+			else if (wParam == '4') {
+				p[srow][scol].type[sside] = 4;
 			}
 		}
 
@@ -171,7 +177,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		}
 		InvalidateRect(hWnd, NULL, false);
 		break;
-	case WM_RBUTTONDOWN:			// 좌클릭
+	case WM_RBUTTONDOWN:			// 우클릭
 		mx = LOWORD(lParam), my = HIWORD(lParam);
 		if (mx < 1000 && my < 500) {
 			rb = 1;
@@ -250,16 +256,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					}
 
 					for (int k = 0; k < 4; k++) {
-						if (p[i][j].type[k] == 4) continue;
-						else if (p[i][j].type[k] == 1) hPen = CreatePen(0, 3, RGB(250, 250, 0));
-						else if (p[i][j].type[k] == 2) hPen = CreatePen(0, 3, RGB(0, 250, 0));
-						else if (p[i][j].type[k] == 3) hPen = CreatePen(0, 3, RGB(255, 0, 0));
+						if (p[i][j].type[k] == 1) continue;													// WPFP project와 통일하기로	1:connect, 2:canhook, 3:cannothook, 4:damage
+						else if (p[i][j].type[k] == 2) hPen = CreatePen(0, 3, RGB(250, 250, 0));	 //노란색 canhook
+						else if (p[i][j].type[k] == 3) hPen = CreatePen(0, 3, RGB(0, 250, 0));		 // 초록색 cannothook
+						else if (p[i][j].type[k] == 4) hPen = CreatePen(0, 3, RGB(255, 0, 0));		 //빨간색 damage
 						SelectObject(mDC, hPen);
 						int x1, y1, x2, y2;
-						if (k == 0) x1 = x, y1 = y, x2 = x + 25, y2 = y;
-						else if (k == 1) x1 = x + 25, y1 = y, x2 = x + 25, y2 = y + 25;
-						else if (k == 2) x1 = x, y1 = y + 25, x2 = x + 25, y2 = y + 25;
-						else if (k == 3) x1 = x, y1 = y, x2 = x, y2 = y + 25;
+						if (k == 0) x1 = x, y1 = y, x2 = x + 25, y2 = y;					//위
+						else if (k == 1) x1 = x + 25, y1 = y, x2 = x + 25, y2 = y + 25;		//오른
+						else if (k == 2) x1 = x, y1 = y + 25, x2 = x + 25, y2 = y + 25;		//아래
+						else if (k == 3) x1 = x, y1 = y, x2 = x, y2 = y + 25;				//왼
 						MoveToEx(mDC, x1, y1, NULL);
 						LineTo(mDC, x2, y2);
 						DeleteObject(hPen);
@@ -281,7 +287,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		TextOut(mDC, 500, 550, side, lstrlen(side));
 
 		TCHAR inst[120];
-		wsprintf(inst, L"1. CANHOOK - 노랑, 2. CANNOTHOOK - 초록, 3.DAMAGE - 빨강            저장: P, 로드: L");
+		wsprintf(inst, L"1. CONNECT - 없 2. CANHOOK - 노랑, 3. CANNOTHOOK - 초록, 4.DAMAGE - 빨강            저장: P, 로드: L"); // WPFP project와 통일하기로	1:connect, 2:canhook, 3:cannothook, 4:damage
 		TextOut(mDC, 80, 600, inst, lstrlen(inst));
 
 		BitBlt(hDC, 0, 0, rect.right, rect.bottom, mDC, 0, 0, SRCCOPY);
