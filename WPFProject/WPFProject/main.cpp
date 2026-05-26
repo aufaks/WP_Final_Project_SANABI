@@ -173,7 +173,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		GetClientRect(hWnd, &rt);
 		cam.sizeX = rt.right, cam.sizeY = rt.bottom;
 		cam.x = 0, cam.y = PLATFORMMAXROW * PLATFORMSIZE - cam.sizeY + 50;
-		HowManyRow = (cam.sizeY / PLATFORMSIZE) + 1, HowManyCol = (cam.sizeX / PLATFORMSIZE) + 1;
+		HowManyRow = (cam.sizeY / PLATFORMSIZE) + 2, HowManyCol = (cam.sizeX / PLATFORMSIZE) + 2;
 
 		// 맵 로딩
 		{
@@ -199,7 +199,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	case WM_SIZE:
 		GetClientRect(hWnd, &rt);
 		cam.sizeX = rt.right, cam.sizeY = rt.bottom;
-		HowManyRow = cam.sizeY / PLATFORMSIZE + 1, HowManyCol = cam.sizeX / PLATFORMSIZE + 1;
+		HowManyRow = cam.sizeY / PLATFORMSIZE + 2, HowManyCol = cam.sizeX / PLATFORMSIZE + 2;
 		break;
 	case WM_KEYDOWN:
 		keys[wParam] = true;
@@ -469,6 +469,19 @@ void GameUpdateProc(HWND hWnd)
 	// 이전 위치 oldX, oldY 갱신
 	mc.oldX = tempX;
 	mc.oldY = tempY;
+
+	// ==================================================
+	// 카메라 좌표 계산
+	// ==================================================
+
+	cam.x = mc.oldX - (cam.sizeX / 2);
+	cam.y = mc.oldY - (cam.sizeY / 2);
+
+	// 캠 위치 맵 안으로 고정
+	if (cam.x <= 0) cam.x = 0;
+	if (cam.x + cam.sizeX >= PLATFORMMAXCOL * PLATFORMSIZE) cam.x = PLATFORMMAXCOL * PLATFORMSIZE - cam.sizeX;
+	if (cam.y <= 0) cam.y = 0;
+	if (cam.y + cam.sizeY >= PLATFORMMAXROW * PLATFORMSIZE) cam.y = PLATFORMMAXROW * PLATFORMSIZE - cam.sizeY;
 
 	InvalidateRect(hWnd, NULL, FALSE);
 }
