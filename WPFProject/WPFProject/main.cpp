@@ -55,7 +55,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 		}
 		else {
 			DWORD currentTime = timeGetTime();
-			if (currentTime - lastTime >= 15) {
+			if (currentTime - lastTime >= 12) {
 				GameUpdateProc(hWnd);
 				lastTime = currentTime;
 			}
@@ -66,8 +66,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 }
 
 #define GRAVITY 0.9
+#define MCWALLCIMBSPEED 3
 #define MCMOVESPEED 0.9
-#define MCJUMPACC 16
+#define MCJUMPACC 18
 #define MAXROPELEN 300
 
 #define FACING_LEFT 0
@@ -202,13 +203,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		HowManyRow = cam.sizeY / PLATFORMSIZE + 2, HowManyCol = cam.sizeX / PLATFORMSIZE + 2;
 		break;
 	case WM_KEYDOWN:
+		if (wParam == VK_SPACE && !keys[VK_SPACE] && (mc.isGrounded || mc.state == ONWALL)) {
+			mc.canjump = true;
+		}
 		keys[wParam] = true;
 		// 주인공 상태 - 달리기 시작
 		if ((wParam == 'A' || wParam == 'D') && mc.state != ISSWINGING && mc.isGrounded) {
 			mc.state = ISSTARTINGRUN;
-		}
-		if (wParam == VK_SPACE) {
-			mc.canjump = true;
 		}
 
 		break;
@@ -249,6 +250,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		HBRUSH hBrush;
 		Rectangle(mDC, rt.left, rt.top, rt.right, rt.bottom);
 		hPen = (HPEN)GetStockObject(BLACK_PEN);
+
+		// (임시) 배경 그리기
+		hPen = CreatePen(0, 0, RGB(150, 180, 255));
+		SelectObject(mDC, hPen);
+		hBrush = CreateSolidBrush(RGB(150, 180, 255));
+		SelectObject(mDC, hBrush);
+		Rectangle(mDC, rt.left, rt.top, rt.right, rt.bottom);
+		DeleteObject(hPen);
+		DeleteObject(hBrush);
 
 		// ==================================================
 		// 플랫폼 그리기
@@ -323,8 +333,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		SelectObject(mDC, hBrush);
 		Ellipse(mDC, mc.x - cam.x, mc.y - cam.y, mc.x - cam.x + 30, mc.y - cam.y + 30);
 		DeleteObject(hBrush);
+		// 상태 확인용
 		TCHAR tchar[10];
-		wsprintf(tchar, L"%d", mc.state);
+		wsprintf(tchar, L"%d %d", mc.state, mc.isGrounded);
 		TextOut(mDC, 10, 10, tchar, lstrlen(tchar));
 
 		// ==================================================
@@ -354,36 +365,78 @@ void GameUpdateProc(HWND hWnd)
 	// 베를레 적분법; 위치 = 현재 위치 + (현재 위치 - 이전 위치) * 저항 + 가속도
 	float tempX = mc.x;
 	float tempY = mc.y;
+
+	int leftCol, rightCol, topRow, bottomRow;
+	leftCol = mc.x / PLATFORMSIZE;
+	rightCol = (mc.x + MCHORIZONALSIZE - 1) / PLATFORMSIZE;
+	topRow = tempY / PLATFORMSIZE;
+	bottomRow = (tempY + MCVERTICALSIZE - 1) / PLATFORMSIZE;
 	
 	// 가속도 설정, Y방향 중력 가속도 반영
 	mc.accX = 0, mc.accY = GRAVITY;
-	// 왼쪽 이동
-	if (keys['A']) {
-		mc.facingDirection = FACING_LEFT;
-		mc.accX -= MCMOVESPEED;
+
+	if (mc.state != ONWALL) {
+		// 왼쪽 이동
+		if (keys['A']) {
+			mc.facingDirection = FACING_LEFT;
+			mc.accX -= MCMOVESPEED;
+		}
+		// 오른쪽 이동
+		if (keys['D']) {
+			mc.facingDirection = FACING_RIGHT;
+			mc.accX += MCMOVESPEED;
+		}
 	}
-	// 오른쪽 이동
-	if (keys['D']) {
-		mc.facingDirection = FACING_RIGHT;
-		mc.accX += MCMOVESPEED;
+	// 벽타기 중
+	if (mc.state == ONWALL) {
+		// 위 이동
+		if (keys['W']) {
+			mc.y -= MCWALLCIMBSPEED;
+
+			// 벽 끝까지 올라가면 점프
+			if ((mc.facingDirection == FACING_LEFT && !platforms[bottomRow][leftCol - 1].isPlatform) 
+				|| (mc.facingDirection == FACING_RIGHT && !platforms[bottomRow][rightCol + 1].isPlatform)) {
+				mc.oldY = mc.y + MCJUMPACC;
+				mc.isGrounded = false;
+				mc.canjump = false;
+
+				// 주인공 상태 변화 - 점프 중
+				mc.state = ISJUMPING;
+			}
+		}
+		// 아래 이동
+		if (keys['S']) {
+			mc.y += MCWALLCIMBSPEED;
+		}
+		tempY = mc.y;
 	}
+	
 	// 점프
-	if (mc.canjump && mc.isGrounded) {
+	if ((mc.isGrounded || mc.state == ONWALL) && mc.canjump) {
 		mc.oldY = mc.y + MCJUMPACC;
 		mc.isGrounded = false;
 		mc.canjump = false;
+
+		if (mc.state == ONWALL) {
+			if (mc.facingDirection == FACING_LEFT) mc.accX += MCJUMPACC / 2;
+			if (mc.facingDirection == FACING_RIGHT) mc.accX -= MCJUMPACC / 2;
+		}
 		// 주인공 상태 변화 - 점프 중
 		if (mc.state != ISSWINGING) mc.state = ISJUMPING;
 	}
 
 	// 로프 매달려 있을 때 저항 줄임
-	float friction;
-	if (mc.state == ISSWINGING) friction = 0.99;
-	else friction = 0.88;
+	float frictionX, frictionY;
+	if (mc.state == ISSWINGING) frictionX = 0.99;
+	else frictionX = 0.9;
+	if (mc.state == ISSWINGING) frictionY = 0.999;
+	else frictionY = 0.95;
 
 	// 베를레 적분 위치 계산
-	mc.x = mc.x + (mc.x - mc.oldX) * friction + mc.accX;
-	mc.y = mc.y + (mc.y - mc.oldY) * 0.99 + mc.accY;
+	if (mc.state != ONWALL) {
+		mc.x = mc.x + (mc.x - mc.oldX) * frictionX + mc.accX;
+		mc.y = mc.y + (mc.y - mc.oldY) * frictionY + mc.accY;
+	}
 	
 	// 로프 걸려있을 때 위치 보정
 	if (mc.state == ISSWINGING) {
@@ -411,22 +464,25 @@ void GameUpdateProc(HWND hWnd)
 	// ==================================================
 
 	// 주인공 위치한 행, 열 구하기
-	int leftCol, rightCol, topRow, bottomRow;
 	leftCol = mc.x / PLATFORMSIZE;
 	rightCol = (mc.x + MCHORIZONALSIZE - 1) / PLATFORMSIZE;
 	topRow = tempY / PLATFORMSIZE;
 	bottomRow = (tempY + MCVERTICALSIZE - 1) / PLATFORMSIZE;
 
-	// 왼쪽 벽 체크
-	if (platforms[topRow][leftCol].isPlatform || platforms[bottomRow][leftCol].isPlatform) {
-		mc.x = (leftCol + 1) * PLATFORMSIZE;
-		tempX = mc.x;
-	}
+	if (mc.state != ONWALL) {
+		// 왼쪽 벽 체크
+		if (platforms[topRow][leftCol].isPlatform || platforms[bottomRow][leftCol].isPlatform) {
+			mc.x = (leftCol + 1) * PLATFORMSIZE;
+			tempX = mc.x;
+			if (keys['A'] && mc.state != ISSWINGING) mc.state = ONWALL;
+		}
 
-	// 오른쪽 벽 체크
-	if (platforms[topRow][rightCol].isPlatform || platforms[bottomRow][rightCol].isPlatform) {
-		mc.x = (rightCol * PLATFORMSIZE) - MCHORIZONALSIZE;
-		tempX = mc.x;
+		// 오른쪽 벽 체크
+		if (platforms[topRow][rightCol].isPlatform || platforms[bottomRow][rightCol].isPlatform) {
+			mc.x = (rightCol * PLATFORMSIZE) - MCHORIZONALSIZE;
+			tempX = mc.x;
+			if (keys['D'] && mc.state != ISSWINGING) mc.state = ONWALL;
+		}
 	}
 
 	// ==================================================
@@ -437,7 +493,7 @@ void GameUpdateProc(HWND hWnd)
 	leftCol = mc.x / PLATFORMSIZE;
 	rightCol = (mc.x + MCHORIZONALSIZE - 1) / PLATFORMSIZE;
 	topRow = mc.y / PLATFORMSIZE;
-	bottomRow = (mc.y + MCVERTICALSIZE - 1) / PLATFORMSIZE;
+	bottomRow = (mc.y + MCVERTICALSIZE) / PLATFORMSIZE;
 
 	// 바닥 체크
 	if (platforms[bottomRow][leftCol].isPlatform || platforms[bottomRow][rightCol].isPlatform) {
@@ -446,6 +502,9 @@ void GameUpdateProc(HWND hWnd)
 		// ISFALLING -> ISLANDING
 		if (mc.state == ISFALLING && !mc.isGrounded) mc.state = ISLANDING;
 		mc.isGrounded = true;
+		if (mc.state == ONWALL) {
+			mc.state = ISSTANDING;
+		}
 	}
 	else {
 		mc.isGrounded = false;
@@ -458,12 +517,12 @@ void GameUpdateProc(HWND hWnd)
 	}
 
 	// 주인공 상태 - 떨어지는 중
-	if ((mc.y - mc.oldY) > 0 && mc.state != ISSWINGING) {
+	if ((mc.y - mc.oldY) > 0 && !mc.isGrounded && mc.state != ISSWINGING && mc.state != ONWALL) {
 		mc.state = ISFALLING;
 	}
 	// 주인공 상태 - 가만히 서있음
-	if ((mc.x - mc.oldX) == 0 && mc.isGrounded && mc.state != ISSWINGING && mc.state != ISLANDING) {
-		//mc.state = ISSTANDING;
+	if ((mc.x - mc.oldX) == 0 && mc.isGrounded && mc.state != ISSWINGING && mc.state != ISLANDING && mc.state != ONWALL) {
+		mc.state = ISSTANDING;
 	}
 
 	// 이전 위치 oldX, oldY 갱신
