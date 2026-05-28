@@ -227,8 +227,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	case WM_LBUTTONDOWN:			// 좌클릭
 		mx = LOWORD(lParam), my = HIWORD(lParam);
 		anch.x = mx + cam.x, anch.y = my + cam.y;
-		dx = mc.x + 15 - anch.x;
-		dy = mc.y + 15 - anch.y;
+		dx = mc.x + MCHORIZONALSIZE - anch.x;
+		dy = mc.y + MCVERTICALSIZE - anch.y;
 		anch.length = sqrt(dx * dx + dy * dy);
 		if (anch.length > 15) mc.state = ISSWINGING;
 		break;
@@ -331,7 +331,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		// ==================================================
 		hBrush = CreateSolidBrush(RGB(255, 0, 0));
 		SelectObject(mDC, hBrush);
-		Ellipse(mDC, mc.x - cam.x, mc.y - cam.y, mc.x - cam.x + 30, mc.y - cam.y + 30);
+		Ellipse(mDC, mc.x - cam.x, mc.y - cam.y, mc.x - cam.x + MCHORIZONALSIZE, mc.y - cam.y + MCVERTICALSIZE);
 		DeleteObject(hBrush);
 		// 상태 확인용
 		TCHAR tchar[10];
@@ -342,7 +342,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		// 사슬 그리기
 		// ==================================================
 		if (mc.state == ISSWINGING) {
-			MoveToEx(mDC, mc.x + 15 - cam.x, mc.y + 15 - cam.y, NULL);
+			MoveToEx(mDC, mc.x + MCHORIZONALSIZE - cam.x, mc.y + MCVERTICALSIZE - cam.y, NULL);
 			LineTo(mDC, anch.x - cam.x, anch.y - cam.y);
 		}
 
@@ -394,8 +394,8 @@ void GameUpdateProc(HWND hWnd)
 			mc.y -= MCWALLCIMBSPEED;
 
 			// 벽 끝까지 올라가면 점프
-			if ((mc.facingDirection == FACING_LEFT && !platforms[bottomRow][leftCol - 1].isPlatform) 
-				|| (mc.facingDirection == FACING_RIGHT && !platforms[bottomRow][rightCol + 1].isPlatform)) {
+			if ((mc.facingDirection == FACING_LEFT && !platforms[topRow][leftCol - 1].isPlatform) 
+				|| (mc.facingDirection == FACING_RIGHT && !platforms[topRow][rightCol + 1].isPlatform)) {
 				mc.oldY = mc.y + MCJUMPACC;
 				mc.isGrounded = false;
 				mc.canjump = false;
@@ -407,6 +407,12 @@ void GameUpdateProc(HWND hWnd)
 		// 아래 이동
 		if (keys['S']) {
 			mc.y += MCWALLCIMBSPEED;
+
+			// 벽 아래가 없으면 떨어짐
+			if ((mc.facingDirection == FACING_LEFT && !platforms[topRow][leftCol - 1].isPlatform)
+				|| (mc.facingDirection == FACING_RIGHT && !platforms[topRow][rightCol + 1].isPlatform)) {
+				mc.state = ISFALLING;
+			}
 		}
 		tempY = mc.y;
 	}
