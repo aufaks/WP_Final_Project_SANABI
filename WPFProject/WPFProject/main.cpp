@@ -10,6 +10,8 @@ using namespace std;
 
 bool gameStart = false;
 void  GameUpdateProc(HWND hWnd);
+float Distance(float x1, float y1, float x2, float y2);
+bool isOutMap(float x, float y);
 
 random_device rd;
 mt19937 gen(rd());
@@ -55,7 +57,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 		}
 		else {
 			DWORD currentTime = timeGetTime();
-			if (currentTime - lastTime >= 12) {
+			if (currentTime - lastTime >= 15) {
 				GameUpdateProc(hWnd);
 				lastTime = currentTime;
 			}
@@ -94,7 +96,7 @@ struct MAINCHARACTER{
 	float oldX, oldY, accX, accY;
 	int hp;
 	int state;
-	bool isGrounded, facingDirection, canjump;
+	bool isGrounded, facingDirection, canjump, isInvincible;
 	MAINCHARACTER() {
 		x = 100, y = 24900;
 		oldX = 100, oldY = 24900;
@@ -104,6 +106,7 @@ struct MAINCHARACTER{
 		isGrounded = false;
 		state = ISSTANDING;
 		facingDirection = FACING_RIGHT;
+		isInvincible = false;
 	}
 };
 
@@ -116,13 +119,26 @@ struct CAMERA {
 	float sizeX, sizeY;
 };
 
-#define ENEMY_NORMAL 0
-#define ENEMY_SHIELD 1
-#define ENEMY_FLYING 2
+#define BULLET_SMALL 1
+#define BULLET_BIG 2
 
-struct ENEMY {
-	float x, y;
+struct BULLET {
+	float x, y, direction;
 	int type;
+};
+
+struct ENEMY_TROOPER {
+	float x, y, direction;
+};
+
+struct ENEMY_TURRET {
+	float x, y, direction;
+	int stickDirection;			// 벽에 붙어있는 방향 (어느쪽 벽에 붙어있는지)
+};
+
+struct ENEMY_DEFENDER {
+	float x, y;
+	bool facingDirection;		// 보고 있는 방향 (방패 방향)
 };
 
 #define PLATFORMMAXROW 500
@@ -152,6 +168,9 @@ MAINCHARACTER mc;
 ANCHOR anch;
 CAMERA cam;
 PLATFORM platforms[PLATFORMMAXROW][PLATFORMMAXCOL];
+
+BULLET bullets[100];
+int bulletsNum = 0;
 
 bool keys[256] = { 0 };
 
@@ -325,6 +344,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				}
 			}
 		}
+		// ==================================================
+		// 적 그리기
+		// ==================================================
+
+
 
 		// ==================================================
 		// 주인공 그리기
@@ -342,9 +366,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		// 사슬 그리기
 		// ==================================================
 		if (mc.state == ISSWINGING) {
-			MoveToEx(mDC, mc.x + MCHORIZONALSIZE - cam.x, mc.y + MCVERTICALSIZE - cam.y, NULL);
+			MoveToEx(mDC, mc.x + (MCHORIZONALSIZE / 2) - cam.x, mc.y + (MCVERTICALSIZE / 2) - cam.y, NULL);
 			LineTo(mDC, anch.x - cam.x, anch.y - cam.y);
 		}
+
+		// ==================================================
+		// 총알 그리기
+		// ==================================================
+		for (int i = 0; i < bulletsNum; i++) {
+			if (bullets[i].type == BULLET_SMALL) {
+
+			}
+			else if (bullets[i].type == BULLET_BIG) {
+
+			}
+		}
+
+
 
 		BitBlt(hDC, 0, 0, rt.right, rt.bottom, mDC, 0, 0, SRCCOPY);
 		DeleteDC(mDC);
@@ -394,8 +432,8 @@ void GameUpdateProc(HWND hWnd)
 			mc.y -= MCWALLCIMBSPEED;
 
 			// 벽 끝까지 올라가면 점프
-			if ((mc.facingDirection == FACING_LEFT && !platforms[topRow][leftCol - 1].isPlatform) 
-				|| (mc.facingDirection == FACING_RIGHT && !platforms[topRow][rightCol + 1].isPlatform)) {
+			if ((mc.facingDirection == FACING_LEFT && (!platforms[topRow][leftCol - 1].isPlatform || platforms[topRow][leftCol - 1].type[WALL_RIGHT] != WALL_CANHOOK))
+				|| (mc.facingDirection == FACING_RIGHT && (!platforms[topRow][rightCol + 1].isPlatform || platforms[topRow][rightCol + 1].type[WALL_LEFT] != WALL_CANHOOK))) {
 				mc.oldY = mc.y + MCJUMPACC;
 				mc.isGrounded = false;
 				mc.canjump = false;
@@ -409,8 +447,8 @@ void GameUpdateProc(HWND hWnd)
 			mc.y += MCWALLCIMBSPEED;
 
 			// 벽 아래가 없으면 떨어짐
-			if ((mc.facingDirection == FACING_LEFT && !platforms[topRow][leftCol - 1].isPlatform)
-				|| (mc.facingDirection == FACING_RIGHT && !platforms[topRow][rightCol + 1].isPlatform)) {
+			if ((mc.facingDirection == FACING_LEFT && (!platforms[topRow][leftCol - 1].isPlatform || platforms[topRow][leftCol - 1].type[WALL_RIGHT] != WALL_CANHOOK))
+				|| (mc.facingDirection == FACING_RIGHT && (!platforms[topRow][rightCol + 1].isPlatform || platforms[topRow][rightCol + 1].type[WALL_LEFT] != WALL_CANHOOK))) {
 				mc.state = ISFALLING;
 			}
 		}
@@ -446,8 +484,8 @@ void GameUpdateProc(HWND hWnd)
 	
 	// 로프 걸려있을 때 위치 보정
 	if (mc.state == ISSWINGING) {
-		float centerX = mc.x + 15;
-		float centerY = mc.y + 15;
+		float centerX = mc.x + (MCHORIZONALSIZE / 2);
+		float centerY = mc.y + (MCVERTICALSIZE / 2);
 		float dx = centerX - anch.x;
 		float dy = centerY - anch.y;
 		float currentDist = sqrt(dx * dx + dy * dy);
@@ -455,8 +493,8 @@ void GameUpdateProc(HWND hWnd)
 			float ratio = anch.length / currentDist;
 			float targetcenterX = anch.x + dx * ratio;
 			float targetcenterY = anch.y + dy * ratio;
-			mc.x = targetcenterX - 15;
-			mc.y = targetcenterY - 15;
+			mc.x = targetcenterX - (MCHORIZONALSIZE / 2);
+			mc.y = targetcenterY - (MCVERTICALSIZE / 2);
 		}
 	}
 
@@ -480,14 +518,14 @@ void GameUpdateProc(HWND hWnd)
 		if (platforms[topRow][leftCol].isPlatform || platforms[bottomRow][leftCol].isPlatform) {
 			mc.x = (leftCol + 1) * PLATFORMSIZE;
 			tempX = mc.x;
-			if (keys['A'] && mc.state != ISSWINGING) mc.state = ONWALL;
+			if (keys['A'] && mc.state != ISSWINGING && platforms[topRow][leftCol].type[WALL_RIGHT] == WALL_CANHOOK) mc.state = ONWALL;
 		}
 
 		// 오른쪽 벽 체크
 		if (platforms[topRow][rightCol].isPlatform || platforms[bottomRow][rightCol].isPlatform) {
 			mc.x = (rightCol * PLATFORMSIZE) - MCHORIZONALSIZE;
 			tempX = mc.x;
-			if (keys['D'] && mc.state != ISSWINGING) mc.state = ONWALL;
+			if (keys['D'] && mc.state != ISSWINGING && platforms[topRow][rightCol].type[WALL_LEFT] == WALL_CANHOOK) mc.state = ONWALL;
 		}
 	}
 
@@ -542,11 +580,51 @@ void GameUpdateProc(HWND hWnd)
 	cam.x = mc.oldX - (cam.sizeX / 2);
 	cam.y = mc.oldY - (cam.sizeY / 2);
 
-	// 캠 위치 맵 안으로 고정
+	// 카메라 위치 맵 안으로 고정
 	if (cam.x <= 0) cam.x = 0;
 	if (cam.x + cam.sizeX >= PLATFORMMAXCOL * PLATFORMSIZE) cam.x = PLATFORMMAXCOL * PLATFORMSIZE - cam.sizeX;
 	if (cam.y <= 0) cam.y = 0;
 	if (cam.y + cam.sizeY >= PLATFORMMAXROW * PLATFORMSIZE) cam.y = PLATFORMMAXROW * PLATFORMSIZE - cam.sizeY;
 
+	// ==================================================
+	// 적 움직임
+	// ==================================================
+	// 주인공과 어느정도 가까워지면 활성화
+	// 다시 멀어지면 비활성화
+
+
+	// ==================================================
+	// 총알 움직임
+	// ==================================================
+	for (int i = 0; i < bulletsNum; i++) {
+		int bulletRow = bullets[i].y / PLATFORMSIZE, bulletCol = bullets[i].x / PLATFORMSIZE;
+		if (bullets[i].type == BULLET_SMALL) {
+			// 이동
+			// 벽에 부딪히면 삭제
+			if (platforms[bulletRow][bulletCol].isPlatform || isOutMap(bullets[i].x, bullets[i].y)) {
+				for (int j = i; j < bulletsNum - 1; j++) {
+					bullets[j] = bullets[j + 1];
+				}
+				i--;
+			}
+		}
+		else if (bullets[i].type == BULLET_BIG) {
+
+		}
+	}
+
 	InvalidateRect(hWnd, NULL, FALSE);
 }
+
+float Distance(float x1, float y1, float x2, float y2) {
+	float dx = x1 - x2, dy = y1 - y2;
+	return sqrt(dx * dx + dy * dy);
+}
+
+bool isOutMap(float x, float y) {
+	if (x < 0) return true;
+	if (y < 0) return true;
+	if (x > PLATFORMMAXCOL * PLATFORMSIZE) return true;
+	if (y > PLATFORMMAXROW * PLATFORMSIZE) return true;
+	return false;
+} 
