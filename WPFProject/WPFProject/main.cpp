@@ -6,12 +6,15 @@
 #include <mmsystem.h>
 #pragma comment(lib, "winmm.lib")
 //#include "resource.h"
+#include <atlimage.h> // CImage 사용을 위해 추가
 using namespace std;
 
 bool gameStart = false;
 void  GameUpdateProc(HWND hWnd);
 float Distance(float x1, float y1, float x2, float y2);
 bool isOutMap(float x, float y);
+//주인공의 상태를 변경하는 함수 //상태당 애니메이션에 필요한 설정도 같이함
+void SetCharacterState(int newState);
 
 random_device rd;
 mt19937 gen(rd());
@@ -49,13 +52,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 
 	DWORD lastTime = timeGetTime();
 	while (1) {
-		if (PeekMessage(&Message, NULL, 0, 0, PM_REMOVE)) {
+		if (PeekMessage(&Message, NULL, 0, 0, PM_REMOVE)) { // 운영체제 메시지(키보드, 마우스 등) 처리 
 			if (Message.message == WM_QUIT)
 				break;
 			TranslateMessage(&Message);
 			DispatchMessage(&Message);
 		}
-		else {
+		else {										// 메시지가 없을 때 (즉, 유저 입력이 없는 평상시에) 실행되는 부분
 			DWORD currentTime = timeGetTime();
 			if (currentTime - lastTime >= 15) {
 				GameUpdateProc(hWnd);
@@ -76,8 +79,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 #define FACING_LEFT 0
 #define FACING_RIGHT 1
 
-#define MCVERTICALSIZE 30
-#define MCHORIZONALSIZE 30
+#define MCVERTICALSIZE 50	//30 //테스트로 크기 변경해봄
+#define MCHORIZONALSIZE 30	//30
 
 #define ISSTANDING 0
 #define ISSWINGING 1
@@ -91,13 +94,57 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 #define ISFALLING 9
 #define ONWALL 10
 
+//상태에 따른 애니메이션 최대 프레임 개수- 더 추가예정, 그런데 상태에 따른 애니메이션 이미지 종류보다 현재 mc.state의 상태가 부족함.(fall_start, wall_climbUP/Down, Death, holding 등). 
+#define STARTRUN_MAXFRAME 2
+#define RUNNING_MAXFRAME 20
+#define STOPRUN_MAXFRAME 6
+
+#define STANDING_MAXFRAME 8
+
+#define JUMPING_MAXFRAME 6
+#define FALLSTART_MAXFRAME 3
+#define FALLING_MAXFRAME 3
+#define LANDING_MAXFRAME 3
+
+
+#define WALLCLIMBDOWN_MAXFRAME 7
+#define WALLCLIMBUP_MAXFRAME 10
+
+#define SWINGJUMP_MAXFRAME 5
+#define SWING_MAXFRAME 15
+
+#define EXHOLDINGBACK_MAXFRAME 8
+
+
+
+
 struct MAINCHARACTER{
 	float x, y;
 	float oldX, oldY, accX, accY;
 	int hp;
 	int state;
 	bool isGrounded, facingDirection, canjump, isInvincible;
-	MAINCHARACTER() {
+	//애니메이션용 변수
+	int currentFrame;     // 현재 프레임 번호
+	int maxFrame;         // 최대 프레임 수  //state에 따라 갱신됨
+	DWORD lastAnimTime;   // 마지막으로 프레임이 바뀐 시간
+	int animDelay;        // 프레임 전환 간격 (밀리초 단위)
+	//애니메이션용 배열
+	CImage RunningSprites_Right[RUNNING_MAXFRAME];
+	CImage RunningSprites_Left[RUNNING_MAXFRAME];
+	CImage StartRunSprites_Right[STARTRUN_MAXFRAME];
+	CImage StartRunSprites_Left[STARTRUN_MAXFRAME];
+	CImage StopRunSprites_Right[STOPRUN_MAXFRAME];
+	CImage StopRunSprites_Left[STOPRUN_MAXFRAME];
+
+	CImage StandingSprites_Right[STANDING_MAXFRAME];
+	CImage StandingSprites_Left[STANDING_MAXFRAME];
+
+	CImage JumpingSprites_Right[JUMPING_MAXFRAME];
+	CImage JumpingSprites_Left[JUMPING_MAXFRAME];
+
+
+	MAINCHARACTER() { //초기화
 		x = 100, y = 24900;
 		oldX = 100, oldY = 24900;
 		accX = 0, accY = 0;
@@ -107,6 +154,11 @@ struct MAINCHARACTER{
 		state = ISSTANDING;
 		facingDirection = FACING_RIGHT;
 		isInvincible = false;
+		//애니메이션용 변수
+		currentFrame = 0;
+		maxFrame = STANDING_MAXFRAME; //기본 standing(idle)의 최대 frame
+		animDelay = 100; //일단 0.1초
+		lastAnimTime = timeGetTime();
 	}
 };
 
@@ -214,6 +266,68 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			}
 			in.close();
 		}
+
+		///주인공 Sprite 불러오기 //상대경로 사용 // Resources 폴더 안의 파일명을 매칭
+		WCHAR filepath[256];
+		//
+
+		for (int i = 0; i < 30; i++) { //일단 최대 30프레임 짜리 
+
+			if (i < STANDING_MAXFRAME) {
+				//오른쪽
+				wsprintf(filepath, L"Resource\\MainCharacter\\standing\\right\\Spr_SNB_Idle (lp) (%d).png", i + 1); //Spr_SNB_Idle (lp) (1).png //Resource\MainCharacter\standing\right\Spr_SNB_Idle (lp) (1).png"
+				HRESULT hr = mc.StandingSprites_Right[i].Load(filepath); //로드 경고 뛰우기 위한 방법
+				if (FAILED(hr)) {
+					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+				//왼쪽
+
+			}
+			if (i < RUNNING_MAXFRAME) {
+				//오른쪽 
+				if (i == 7) continue; //running 8번이미지 누락되어있음.
+				wsprintf(filepath, L"Resource\\MainCharacter\\running\\running\\right\\Spr_SNB_Running (lp) (%d).png", i + 1); //Resource\MainCharacter\running\running\right\Spr_SNB_Running (lp) (1).png"
+				HRESULT hr = mc.RunningSprites_Right[i].Load(filepath); //로드 경고 뛰우기 위한 방법
+				if (FAILED(hr)) {
+					//MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+				//왼쪽
+			}
+			if (i < STARTRUN_MAXFRAME) {
+				//오른쪽 
+				wsprintf(filepath, L"Resource\\MainCharacter\\running\\start_run\\right\\Spr_SNB_RunStart (%d).png", i + 1);//Resource\MainCharacter\running\start_run\right\Spr_SNB_RunStart (1).png"
+				HRESULT hr = mc.StartRunSprites_Right[i].Load(filepath); //로드 경고 뛰우기 위한 방법
+				if (FAILED(hr)) {
+					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+					
+
+				}
+				//왼쪽
+			}
+			if (i < STOPRUN_MAXFRAME) {
+				//오른쪽 
+				wsprintf(filepath, L"Resource\\MainCharacter\\running\\stop_run\\right\\Spr_SNB_RunStop (%d).png", i + 1);//Resource\MainCharacter\running\stop_run\right\Spr_SNB_RunStop (1).png"
+				HRESULT hr = mc.StopRunSprites_Right[i].Load(filepath); //로드 경고 뛰우기 위한 방법
+				if (FAILED(hr)) {
+					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+				//왼쪽
+			}
+			if (i < JUMPING_MAXFRAME) {
+				//오른쪽 
+				wsprintf(filepath, L"Resource\\MainCharacter\\jumping\\right\\Spr_SNB_Jumping (lp) (%d).png", i + 1);//Resource\MainCharacter\jumping\right\Spr_SNB_Jumping (lp) (1).png"
+				HRESULT hr = mc.JumpingSprites_Right[i].Load(filepath); //로드 경고 뛰우기 위한 방법
+				if (FAILED(hr)) {
+					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+				//왼쪽
+			}
+		}//sprite load for문 끝
+
+
+
+
 		gameStart = true;
 		break;
 	case WM_SIZE:
@@ -228,7 +342,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		keys[wParam] = true;
 		// 주인공 상태 - 달리기 시작
 		if ((wParam == 'A' || wParam == 'D') && mc.state != ISSWINGING && mc.isGrounded) {
-			mc.state = ISSTARTINGRUN;
+			SetCharacterState(ISSTARTINGRUN);//mc.state = ISSTARTINGRUN; --> startingrun에서 running으로 바뀌게 프레임이 끝나면 변경함(프레임 갱신 부분에서)
 		}
 
 		break;
@@ -236,10 +350,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		keys[wParam] = false;
 		// 주인공 상태 - 달리기 멈추기
 		if (wParam == 'A' && mc.facingDirection == FACING_LEFT && mc.state == ISRUNNING && mc.isGrounded) {
-			mc.state = ISSTOPPING;
+			SetCharacterState(ISSTOPPING);//mc.state = ISSTOPPING;  --> stoprun에서 standing으로 바뀌게 프레임이 끝나면 변경함(프레임 갱신 부분에서)
 		}
 		else if (wParam == 'D' && mc.facingDirection == FACING_RIGHT && mc.state == ISRUNNING && mc.isGrounded) {
-			mc.state = ISSTOPPING;
+			SetCharacterState(ISSTOPPING);//mc.state = ISSTOPPING;  --> stoprun에서 standing으로 바뀌게 프레임이 끝나면 변경함(프레임 갱신 부분에서)
 		}
 
 		break;
@@ -249,16 +363,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		dx = mc.x + MCHORIZONALSIZE - anch.x;
 		dy = mc.y + MCVERTICALSIZE - anch.y;
 		anch.length = sqrt(dx * dx + dy * dy);
-		if (anch.length > 15) mc.state = ISSWINGING;
+		if (anch.length > 15) SetCharacterState(ISSWINGING);//mc.state = ISSWINGING;
 		break;
 	case WM_LBUTTONUP:
-		if ((mc.x - mc.oldX) * (mc.x - mc.oldX) > 100) mc.state = ISSWINGJUMPING;
-		else mc.state = ISFALLING;
+		if ((mc.x - mc.oldX) * (mc.x - mc.oldX) > 100) SetCharacterState(ISSWINGJUMPING);//mc.state = ISSWINGJUMPING;
+		else SetCharacterState(ISFALLING);//mc.state = ISFALLING;
 		break;
 	case WM_MOUSEMOVE:
 		mx = LOWORD(lParam), my = HIWORD(lParam);
 		break;
 	case WM_PAINT:
+	{
 		GetClientRect(hWnd, &rt);
 		hDC = BeginPaint(hWnd, &ps);
 		mDC = CreateCompatibleDC(hDC);
@@ -347,16 +462,73 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		// ==================================================
 		// 적 그리기
 		// ==================================================
-
+#define ISSWINGING 1
+#define ISJUMPING 2
+#define ISLANDING 3
+#define ISSWINGJUMPING 4
+#define ISSTARTINGRUN 5
+#define ISRUNNING 6
+#define ISSTOPPING 7
+#define ISDAMAGED 8
+#define ISFALLING 9
+#define ONWALL 10
 
 
 		// ==================================================
 		// 주인공 그리기
 		// ==================================================
-		hBrush = CreateSolidBrush(RGB(255, 0, 0));
-		SelectObject(mDC, hBrush);
-		Ellipse(mDC, mc.x - cam.x, mc.y - cam.y, mc.x - cam.x + MCHORIZONALSIZE, mc.y - cam.y + MCVERTICALSIZE);
-		DeleteObject(hBrush);
+		//주인공 그릴 위치
+		int posx = (int)(mc.x - cam.x);
+		int posy = (int)(mc.y - cam.y);
+		//그리는 크기
+
+		//현재 프레임
+		int frame = mc.currentFrame;
+		if (mc.facingDirection == FACING_RIGHT) {
+			switch (mc.state) {
+			case ISSTANDING: {
+				mc.StandingSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
+			case ISSTARTINGRUN: {
+				mc.StartRunSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
+			case ISRUNNING: {
+
+				//running 에서 8번 이미지가 누락되어있어서 그거 스킵 배열인덱스 7번
+				if (mc.state == ISRUNNING && frame == 7) {
+					break;
+				}
+				mc.RunningSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
+			case ISSTOPPING: {
+				mc.StopRunSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
+			case ISJUMPING: {
+				mc.JumpingSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
+			default: {
+				hBrush = CreateSolidBrush(RGB(255, 0, 0));
+				SelectObject(mDC, hBrush);
+				Ellipse(mDC, mc.x - cam.x, mc.y - cam.y, mc.x - cam.x + MCHORIZONALSIZE, mc.y - cam.y + MCVERTICALSIZE);
+				DeleteObject(hBrush);
+				break;
+			}
+
+			}//switch문 끝
+		}
+		else {//왼쪽 방향
+			hBrush = CreateSolidBrush(RGB(255, 0, 0));
+			SelectObject(mDC, hBrush);
+			Ellipse(mDC, mc.x - cam.x, mc.y - cam.y, mc.x - cam.x + MCHORIZONALSIZE, mc.y - cam.y + MCVERTICALSIZE);
+			DeleteObject(hBrush);
+		}
+
+
 		// 상태 확인용
 		TCHAR tchar[10];
 		wsprintf(tchar, L"%d %d", mc.state, mc.isGrounded);
@@ -389,6 +561,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		DeleteObject(hBitmap);
 		EndPaint(hWnd, &ps);
 		break;
+	}
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		break;
@@ -439,7 +612,7 @@ void GameUpdateProc(HWND hWnd)
 				mc.canjump = false;
 
 				// 주인공 상태 변화 - 점프 중
-				mc.state = ISJUMPING;
+				SetCharacterState(ISJUMPING);//mc.state = ISJUMPING;
 			}
 		}
 		// 아래 이동
@@ -449,7 +622,7 @@ void GameUpdateProc(HWND hWnd)
 			// 벽 아래가 없으면 떨어짐
 			if ((mc.facingDirection == FACING_LEFT && (!platforms[topRow][leftCol - 1].isPlatform || platforms[topRow][leftCol - 1].type[WALL_RIGHT] != WALL_CANHOOK))
 				|| (mc.facingDirection == FACING_RIGHT && (!platforms[topRow][rightCol + 1].isPlatform || platforms[topRow][rightCol + 1].type[WALL_LEFT] != WALL_CANHOOK))) {
-				mc.state = ISFALLING;
+				SetCharacterState(ISFALLING);//mc.state = ISFALLING;
 			}
 		}
 		tempY = mc.y;
@@ -466,7 +639,7 @@ void GameUpdateProc(HWND hWnd)
 			if (mc.facingDirection == FACING_RIGHT) mc.accX -= MCJUMPACC / 2;
 		}
 		// 주인공 상태 변화 - 점프 중
-		if (mc.state != ISSWINGING) mc.state = ISJUMPING;
+		if (mc.state != ISSWINGING) SetCharacterState(ISJUMPING); //mc.state = ISJUMPING;
 	}
 
 	// 로프 매달려 있을 때 저항 줄임
@@ -518,14 +691,14 @@ void GameUpdateProc(HWND hWnd)
 		if (platforms[topRow][leftCol].isPlatform || platforms[bottomRow][leftCol].isPlatform) {
 			mc.x = (leftCol + 1) * PLATFORMSIZE;
 			tempX = mc.x;
-			if (keys['A'] && mc.state != ISSWINGING && platforms[topRow][leftCol].type[WALL_RIGHT] == WALL_CANHOOK) mc.state = ONWALL;
+			if (keys['A'] && mc.state != ISSWINGING && platforms[topRow][leftCol].type[WALL_RIGHT] == WALL_CANHOOK) SetCharacterState(ONWALL);//mc.state = ONWALL;
 		}
 
 		// 오른쪽 벽 체크
 		if (platforms[topRow][rightCol].isPlatform || platforms[bottomRow][rightCol].isPlatform) {
 			mc.x = (rightCol * PLATFORMSIZE) - MCHORIZONALSIZE;
 			tempX = mc.x;
-			if (keys['D'] && mc.state != ISSWINGING && platforms[topRow][rightCol].type[WALL_LEFT] == WALL_CANHOOK) mc.state = ONWALL;
+			if (keys['D'] && mc.state != ISSWINGING && platforms[topRow][rightCol].type[WALL_LEFT] == WALL_CANHOOK) SetCharacterState(ONWALL);//mc.state = ONWALL;
 		}
 	}
 
@@ -544,10 +717,10 @@ void GameUpdateProc(HWND hWnd)
 		mc.y = bottomRow * PLATFORMSIZE - MCVERTICALSIZE;
 		tempY = mc.y;
 		// ISFALLING -> ISLANDING
-		if (mc.state == ISFALLING && !mc.isGrounded) mc.state = ISLANDING;
+		if (mc.state == ISFALLING && !mc.isGrounded) SetCharacterState(ISLANDING);//mc.state = ISLANDING;
 		mc.isGrounded = true;
 		if (mc.state == ONWALL) {
-			mc.state = ISSTANDING;
+			SetCharacterState(ISSTANDING);//mc.state = ISSTANDING;
 		}
 	}
 	else {
@@ -562,11 +735,12 @@ void GameUpdateProc(HWND hWnd)
 
 	// 주인공 상태 - 떨어지는 중
 	if ((mc.y - mc.oldY) > 0 && !mc.isGrounded && mc.state != ISSWINGING && mc.state != ONWALL) {
-		mc.state = ISFALLING;
+		SetCharacterState(ISFALLING);//mc.state = ISFALLING;
 	}
-	// 주인공 상태 - 가만히 서있음
-	if ((mc.x - mc.oldX) == 0 && mc.isGrounded && mc.state != ISSWINGING && mc.state != ISLANDING && mc.state != ONWALL) {
-		mc.state = ISSTANDING;
+	// 주인공 상태 - 가만히 서있음																										//mc.state != ISSTOPPING 추가 //stopping 하고 standing하도록
+	if (abs(mc.x - mc.oldX) < 0.001f && mc.isGrounded && mc.state != ISSWINGING && mc.state != ISLANDING && mc.state != ONWALL && mc.state != ISSTOPPING) { //(mc.x - mc.oldX) == 0 --> abs(mc.x - mc.oldX)로 변경 이유 절댓값을 이용해야하고, 실수는 0이 될수 없음
+		mc.x = mc.oldX; // 미세하게 움직이는 물리 좌표를 완전히 고정
+		SetCharacterState(ISSTANDING);//mc.state = ISSTANDING;
 	}
 
 	// 이전 위치 oldX, oldY 갱신
@@ -613,6 +787,36 @@ void GameUpdateProc(HWND hWnd)
 		}
 	}
 
+	// ==================================================
+	// 애니메이션 프레임 갱신
+	// ==================================================
+	DWORD currentTime = timeGetTime();
+	if (currentTime - mc.lastAnimTime >= mc.animDelay) { // 설정한 딜레이(ms)보다 시간이 더 흘렀다면 다음 프레임으로
+		mc.currentFrame++; // 다음 프레임으로 이동
+
+
+		
+		// 마지막 프레임에 도달하면 다시 처음으로 루프
+		if (mc.currentFrame >= mc.maxFrame) {
+			mc.currentFrame = 0;
+
+			// 애니메이션이 끝나면 자동으로 다음 상태로 넘어가야 하는 상태들 처리
+			if (mc.state == ISSTARTINGRUN) {
+				SetCharacterState(ISRUNNING);
+			}
+			else if (mc.state == ISSTOPPING) {
+				SetCharacterState(ISSTANDING);
+			}
+			else if (mc.state == ISLANDING) {
+				SetCharacterState(ISSTANDING);
+			}
+
+			
+		}
+		mc.lastAnimTime = currentTime; // 시간 갱신
+	}
+
+
 	InvalidateRect(hWnd, NULL, FALSE);
 }
 
@@ -628,3 +832,63 @@ bool isOutMap(float x, float y) {
 	if (y > PLATFORMMAXROW * PLATFORMSIZE) return true;
 	return false;
 } 
+
+//주인공의 상태를 변경하는 함수 //상태당 애니메이션에 필요한 설정도 같이함
+void SetCharacterState(int newState)
+{
+	// 이미 해당 상태라면 변경하지 않음 (프레임이 도중에 0으로 리셋되는 것 방지)
+	if (mc.state == newState) return;
+
+	mc.state = newState;	//플레이어의 상태 변경
+	mc.currentFrame = 0; // 새로운 애니메이션을 위해 프레임 리셋
+	mc.lastAnimTime = timeGetTime(); // 타이머 리셋
+
+	//// 상태별 애니메이션 설정 부여 //애니메이션 프레임 간격 // 애니메이션 당 최대 프레임 개수
+
+	switch (newState) {
+	case ISSTANDING:
+		mc.maxFrame = STANDING_MAXFRAME;
+		mc.animDelay = 100; // 대기 상태는 조금 느긋하게 (0.12초 간격)
+		break;
+	case ISSTARTINGRUN:
+		mc.maxFrame = STARTRUN_MAXFRAME;
+		mc.animDelay = 50;
+		break;
+	case ISRUNNING:
+		mc.maxFrame = RUNNING_MAXFRAME;
+		mc.animDelay = 50;  // 달리기는 빠르게 (0.05초 간격)
+		break;
+	case ISSTOPPING:
+		mc.maxFrame = STOPRUN_MAXFRAME;
+		mc.animDelay = 50;
+		break;
+	case ISJUMPING:
+		mc.maxFrame = JUMPING_MAXFRAME;
+		mc.animDelay = 100;
+		break;
+	case ISLANDING:
+		mc.maxFrame = LANDING_MAXFRAME;
+		mc.animDelay = 100;
+		break;
+	case ISFALLING:
+		mc.maxFrame = FALLING_MAXFRAME;
+		mc.animDelay = 100;
+		break;
+	/*case ONWALL:
+		mc.maxFrame = ;
+		mc.animDelay = 100;
+		break;*/
+	/*case ISSWINGING:
+		mc.maxFrame = ;
+		mc.animDelay = 100;
+		break;*/
+	/*case ISSWINGJUMPING:
+		mc.maxFrame = ;
+		mc.animDelay = 100;
+		break;*/
+	/*case ISDAMAGED:
+		mc.maxFrame = ;
+		mc.animDelay = 100;
+		break;*/
+	}
+}
