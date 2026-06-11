@@ -499,18 +499,26 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		keys[wParam] = true;
 		// 주인공 상태 - 달리기 시작
 		if ((wParam == 'A' || wParam == 'D') && mc.state != ISSWINGING && mc.isGrounded) {
-			SetCharacterState(ISSTARTINGRUN);//mc.state = ISSTARTINGRUN; --> startingrun에서 running으로 바뀌게 프레임이 끝나면 변경함(프레임 갱신 부분에서)
+			if (mc.state != ISRUNNING && mc.state != ISSTARTINGRUN) { // 이미 달리고 있거나(ISRUNNING), 출발하는 중(ISSTARTINGRUN)이 아닐 때만 상태를 바꾸도록
+				SetCharacterState(ISSTARTINGRUN);//mc.state = ISSTARTINGRUN; --> startingrun에서 running으로 바뀌게 프레임이 끝나면 변경함(프레임 갱신 부분에서)
+			}
+			
 		}
 
 		break;
 	case WM_KEYUP:
 		keys[wParam] = false;
 		// 주인공 상태 - 달리기 멈추기
-		if (wParam == 'A' && mc.facingDirection == FACING_LEFT && mc.state == ISRUNNING && mc.isGrounded) {
-			SetCharacterState(ISSTOPPING);//mc.state = ISSTOPPING;  --> stoprun에서 standing으로 바뀌게 프레임이 끝나면 변경함(프레임 갱신 부분에서)
+		if (wParam == 'A' && mc.facingDirection == FACING_LEFT && mc.isGrounded) {
+			if (mc.state == ISRUNNING || mc.state == ISSTARTINGRUN) { //ISSTARTINGRUN 상태일 때 또는 ISRUNNING 상태일 때도 키를 떼어도 멈출 수 있도록
+				SetCharacterState(ISSTOPPING);//mc.state = ISSTOPPING;  --> stoprun에서 standing으로 바뀌게 프레임이 끝나면 변경함(프레임 갱신 부분에서)
+			}
+			
 		}
-		else if (wParam == 'D' && mc.facingDirection == FACING_RIGHT && mc.state == ISRUNNING && mc.isGrounded) {
-			SetCharacterState(ISSTOPPING);//mc.state = ISSTOPPING;  --> stoprun에서 standing으로 바뀌게 프레임이 끝나면 변경함(프레임 갱신 부분에서)
+		else if (wParam == 'D' && mc.facingDirection == FACING_RIGHT && mc.isGrounded) {
+			if (mc.state == ISRUNNING || mc.state == ISSTARTINGRUN) {  //ISSTARTINGRUN 상태일 때 또는 ISRUNNING 상태일 때도 키를 떼어도 멈출 수 있도록
+				SetCharacterState(ISSTOPPING);//mc.state = ISSTOPPING;  --> stoprun에서 standing으로 바뀌게 프레임이 끝나면 변경함(프레임 갱신 부분에서)
+			}
 		}
 
 		break;
