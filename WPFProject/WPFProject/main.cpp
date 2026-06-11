@@ -111,14 +111,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 #define WALLCLIMBUP_MAXFRAME 10
 
 #define SWINGJUMP_MAXFRAME 5
-#define SWING_MAXFRAME 15
+#define SWINGING_MAXFRAME 15
 
 #define EXHOLDINGBACK_MAXFRAME 8
+#define DAMAGED_MAXFRAME 5
+#define DEATH_MAXFRAME 24
 
 
 
 
-struct MAINCHARACTER{
+
+struct MAINCHARACTER {
 	float x, y;
 	float oldX, oldY, accX, accY;
 	int hp;
@@ -143,6 +146,30 @@ struct MAINCHARACTER{
 	CImage JumpingSprites_Right[JUMPING_MAXFRAME];
 	CImage JumpingSprites_Left[JUMPING_MAXFRAME];
 
+	CImage StartFallSprites_Right[FALLSTART_MAXFRAME];
+	CImage StartFallSprites_Left[FALLSTART_MAXFRAME];
+	CImage FallingSprites_Right[FALLING_MAXFRAME];
+	CImage FallingSprites_Left[FALLING_MAXFRAME];
+	CImage LandingSprites_Right[LANDING_MAXFRAME];
+	CImage LandingSprites_Left[LANDING_MAXFRAME];
+
+	CImage SwingingSprites_Right[SWINGING_MAXFRAME];
+	CImage SwingingSprites_Left[SWINGING_MAXFRAME];
+	CImage SwingJumpingSprites_Right[SWINGJUMP_MAXFRAME];
+	CImage SwingJumpingSprites_Left[SWINGJUMP_MAXFRAME];
+
+	CImage ClimbUpSprites_Right[WALLCLIMBUP_MAXFRAME];
+	CImage ClimbUpSprites_Left[WALLCLIMBUP_MAXFRAME];
+	CImage ClimbDownSprites_Right[WALLCLIMBDOWN_MAXFRAME];
+	CImage ClimbDownSprites_Left[WALLCLIMBDOWN_MAXFRAME];
+
+	CImage ExHoldingBackSprites_Right[EXHOLDINGBACK_MAXFRAME];
+	CImage ExHoldingBackSprites_Left[EXHOLDINGBACK_MAXFRAME];
+
+	CImage DamagedSprites_Right[DAMAGED_MAXFRAME];
+	CImage DamagedSprites_Left[DAMAGED_MAXFRAME];
+	CImage DeathSprites_Right[DEATH_MAXFRAME];
+	CImage DeathSprites_Left[DEATH_MAXFRAME];
 
 	MAINCHARACTER() { //초기화
 		x = 100, y = 24900;
@@ -269,60 +296,190 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		///주인공 Sprite 불러오기 //상대경로 사용 // Resources 폴더 안의 파일명을 매칭
 		WCHAR filepath[256];
-		//
-
 		for (int i = 0; i < 30; i++) { //일단 최대 30프레임 짜리 
 
 			if (i < STANDING_MAXFRAME) {
 				//오른쪽
 				wsprintf(filepath, L"Resource\\MainCharacter\\standing\\right\\Spr_SNB_Idle (lp) (%d).png", i + 1); //Spr_SNB_Idle (lp) (1).png //Resource\MainCharacter\standing\right\Spr_SNB_Idle (lp) (1).png"
-				HRESULT hr = mc.StandingSprites_Right[i].Load(filepath); //로드 경고 뛰우기 위한 방법
-				if (FAILED(hr)) {
+				if (FAILED(mc.StandingSprites_Right[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
 					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
 				}
 				//왼쪽
-
+				wsprintf(filepath, L"Resource\\MainCharacter\\standing\\left\\Spr_SNB_Idle (lp) (%d).png", i + 1); //Spr_SNB_Idle (lp) (1).png //Resource\MainCharacter\standing\left\Spr_SNB_Idle (lp) (1).png"
+				if (FAILED(mc.StandingSprites_Left[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
 			}
 			if (i < RUNNING_MAXFRAME) {
 				//오른쪽 
-				if (i == 7) continue; //running 8번이미지 누락되어있음.
+				//if (i == 7) continue; //running 8번이미지 누락되어있음.
 				wsprintf(filepath, L"Resource\\MainCharacter\\running\\running\\right\\Spr_SNB_Running (lp) (%d).png", i + 1); //Resource\MainCharacter\running\running\right\Spr_SNB_Running (lp) (1).png"
-				HRESULT hr = mc.RunningSprites_Right[i].Load(filepath); //로드 경고 뛰우기 위한 방법
-				if (FAILED(hr)) {
-					//MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				if (FAILED(mc.RunningSprites_Right[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
 					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
 				}
 				//왼쪽
+				wsprintf(filepath, L"Resource\\MainCharacter\\running\\running\\left\\Spr_SNB_Running (lp) (%d).png", i + 1); //Resource\MainCharacter\running\running\left\Spr_SNB_Running (lp) (1).png"
+				if (FAILED(mc.RunningSprites_Left[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
 			}
 			if (i < STARTRUN_MAXFRAME) {
 				//오른쪽 
 				wsprintf(filepath, L"Resource\\MainCharacter\\running\\start_run\\right\\Spr_SNB_RunStart (%d).png", i + 1);//Resource\MainCharacter\running\start_run\right\Spr_SNB_RunStart (1).png"
-				HRESULT hr = mc.StartRunSprites_Right[i].Load(filepath); //로드 경고 뛰우기 위한 방법
-				if (FAILED(hr)) {
-					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
-					
-
+				if (FAILED(mc.StartRunSprites_Right[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
 				}
 				//왼쪽
+				wsprintf(filepath, L"Resource\\MainCharacter\\running\\start_run\\left\\Spr_SNB_RunStart (%d).png", i + 1);//Resource\MainCharacter\running\start_run\left\Spr_SNB_RunStart (1).png"
+				if (FAILED(mc.StartRunSprites_Left[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
 			}
 			if (i < STOPRUN_MAXFRAME) {
 				//오른쪽 
 				wsprintf(filepath, L"Resource\\MainCharacter\\running\\stop_run\\right\\Spr_SNB_RunStop (%d).png", i + 1);//Resource\MainCharacter\running\stop_run\right\Spr_SNB_RunStop (1).png"
-				HRESULT hr = mc.StopRunSprites_Right[i].Load(filepath); //로드 경고 뛰우기 위한 방법
-				if (FAILED(hr)) {
-					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				if (FAILED(mc.StopRunSprites_Right[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
 				}
 				//왼쪽
+				wsprintf(filepath, L"Resource\\MainCharacter\\running\\stop_run\\left\\Spr_SNB_RunStop (%d).png", i + 1);//Resource\MainCharacter\running\stop_run\left\Spr_SNB_RunStop (1).png"
+				if (FAILED(mc.StopRunSprites_Left[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
 			}
 			if (i < JUMPING_MAXFRAME) {
 				//오른쪽 
 				wsprintf(filepath, L"Resource\\MainCharacter\\jumping\\right\\Spr_SNB_Jumping (lp) (%d).png", i + 1);//Resource\MainCharacter\jumping\right\Spr_SNB_Jumping (lp) (1).png"
-				HRESULT hr = mc.JumpingSprites_Right[i].Load(filepath); //로드 경고 뛰우기 위한 방법
-				if (FAILED(hr)) {
-					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				if (FAILED(mc.JumpingSprites_Right[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
 				}
 				//왼쪽
+				wsprintf(filepath, L"Resource\\MainCharacter\\jumping\\left\\Spr_SNB_Jumping (lp) (%d).png", i + 1);//Resource\MainCharacter\jumping\left\Spr_SNB_Jumping (lp) (1).png"
+				if (FAILED(mc.JumpingSprites_Left[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
 			}
+			if (i < FALLSTART_MAXFRAME) {
+				//오른쪽 
+				wsprintf(filepath, L"Resource\\MainCharacter\\falling\\fall_start\\right\\Spr_SNB_FallStart (%d).png", i + 1);//Resource\MainCharacter\falling\fall_start\right\Spr_SNB_FallStart (1).png"
+				if (FAILED(mc.StartFallSprites_Right[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+				//왼쪽
+				wsprintf(filepath, L"Resource\\MainCharacter\\falling\\fall_start\\left\\Spr_SNB_FallStart (%d).png", i + 1);//Resource\MainCharacter\falling\fall_start\left\Spr_SNB_FallStart (1).png"
+				if (FAILED(mc.StartFallSprites_Left[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+			}
+			if (i < FALLING_MAXFRAME) {
+				//오른쪽 
+				wsprintf(filepath, L"Resource\\MainCharacter\\falling\\falling\\right\\Spr_SNB_Falling (lp) (%d).png", i + 1);//\Resource\MainCharacter\falling\falling\right\Spr_SNB_Falling (lp) (1).png"
+				if (FAILED(mc.FallingSprites_Right[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+				//왼쪽
+				wsprintf(filepath, L"Resource\\MainCharacter\\falling\\falling\\left\\Spr_SNB_Falling (lp) (%d).png", i + 1);//\Resource\MainCharacter\falling\falling\left\Spr_SNB_Falling (lp) (1).png"
+				if (FAILED(mc.FallingSprites_Left[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+			}
+			if (i < LANDING_MAXFRAME) {
+				//오른쪽 
+				wsprintf(filepath, L"Resource\\MainCharacter\\falling\\landing\\right\\Spr_SNB_Landing (%d).png", i + 1);//Resource\MainCharacter\falling\landing\right\Spr_SNB_Landing (1).png"
+				if (FAILED(mc.LandingSprites_Right[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+				//왼쪽
+				wsprintf(filepath, L"Resource\\MainCharacter\\falling\\landing\\left\\Spr_SNB_Landing (%d).png", i + 1);//Resource\MainCharacter\falling\landing\left\Spr_SNB_Landing (1).png"
+				if (FAILED(mc.LandingSprites_Left[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+			}
+			if (i < SWINGING_MAXFRAME) {
+				//오른쪽 //"D:\GitHub\WP_Final_Project_SANABI\WPFProject\WPFProject\Resource\MainCharacter\swing\swinging\right\Spr_SNB_Swing (1).png"
+				wsprintf(filepath, L"Resource\\MainCharacter\\swing\\swinging\\right\\Spr_SNB_Swing (%d).png", i + 1);//Resource\MainCharacter\swing\swinging\right\Spr_SNB_Swing (1).png"
+				if (FAILED(mc.SwingingSprites_Right[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+				//왼쪽
+				wsprintf(filepath, L"Resource\\MainCharacter\\swing\\swinging\\left\\Spr_SNB_Swing (%d).png", i + 1);//Resource\MainCharacter\swing\swinging\left\Spr_SNB_Swing (1).png"
+				if (FAILED(mc.SwingingSprites_Left[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+			}
+			if (i < SWINGJUMP_MAXFRAME) {
+				//오른쪽 
+				wsprintf(filepath, L"Resource\\MainCharacter\\swing\\swing_jumping\\right\\Spr_SNB_SwingJumpUp (%d).png", i + 1);//Resource\MainCharacter\swing\swing_jumping\right\Spr_SNB_SwingJumpUp (1).png"
+				if (FAILED(mc.SwingJumpingSprites_Right[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+				//왼쪽
+				wsprintf(filepath, L"Resource\\MainCharacter\\swing\\swing_jumping\\left\\Spr_SNB_SwingJumpUp (%d).png", i + 1);//Resource\MainCharacter\swing\swing_jumping\left\Spr_SNB_SwingJumpUp (1).png"
+				if (FAILED(mc.SwingJumpingSprites_Left[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+			}
+			if (i < WALLCLIMBUP_MAXFRAME) {
+				//오른쪽 
+				wsprintf(filepath, L"Resource\\MainCharacter\\wallclimb\\climb_up\\right\\Spr_SNB_WallClimbUp (lp) (%d).png", i + 1);//Resource\MainCharacter\wallclimb\climb_up\right\Spr_SNB_WallClimbUp (lp) (1).png"
+				if (FAILED(mc.ClimbUpSprites_Right[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+				//왼쪽
+				wsprintf(filepath, L"Resource\\MainCharacter\\wallclimb\\climb_up\\left\\Spr_SNB_WallClimbUp (lp) (%d).png", i + 1);//Resource\MainCharacter\wallclimb\climb_up\left\Spr_SNB_WallClimbUp (lp) (1).png"
+				if (FAILED(mc.ClimbUpSprites_Left[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+			}
+			if (i < WALLCLIMBDOWN_MAXFRAME) {
+				//오른쪽 
+				wsprintf(filepath, L"Resource\\MainCharacter\\wallclimb\\climb_down\\right\\Spr_SNB_WallClimbDown (lp) (%d).png", i + 1);//Resource\MainCharacter\wallclimb\climb_down\right\Spr_SNB_WallClimbDown (lp) (1).png"
+				if (FAILED(mc.ClimbDownSprites_Right[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+				//왼쪽
+				wsprintf(filepath, L"Resource\\MainCharacter\\wallclimb\\climb_down\\left\\Spr_SNB_WallClimbDown (lp) (%d).png", i + 1);//Resource\MainCharacter\wallclimb\climb_down\left\Spr_SNB_WallClimbDown (lp) (1).png"
+				if (FAILED(mc.ClimbDownSprites_Left[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+			}
+			if (i < EXHOLDINGBACK_MAXFRAME) {
+				//오른쪽 
+				wsprintf(filepath, L"Resource\\MainCharacter\\holding\\right\\Spr_SNB_ExcHolding_Back (lp) (%d).png", i + 1);//Resource\MainCharacter\holding\right\Spr_SNB_ExcHolding_Back (lp) (1).png"
+				if (FAILED(mc.ExHoldingBackSprites_Right[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+				//왼쪽
+				wsprintf(filepath, L"Resource\\MainCharacter\\holding\\left\\Spr_SNB_ExcHolding_Back (lp) (%d).png", i + 1);//Resource\MainCharacter\holding\left\Spr_SNB_ExcHolding_Back (lp) (1).png"
+				if (FAILED(mc.ExHoldingBackSprites_Left[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+			}
+			if (i < DAMAGED_MAXFRAME) {
+				//오른쪽 
+				wsprintf(filepath, L"Resource\\MainCharacter\\damaged\\right\\Spr_SNB_Damaged (%d).png", i + 1);//Resource\MainCharacter\damaged\right\Spr_SNB_Damaged (1).png"
+				if (FAILED(mc.DamagedSprites_Right[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+				//왼쪽
+				wsprintf(filepath, L"Resource\\MainCharacter\\damaged\\left\\Spr_SNB_Damaged (%d).png", i + 1);//Resource\MainCharacter\damaged\left\Spr_SNB_Damaged (1).png"
+				if (FAILED(mc.DamagedSprites_Left[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+			}
+			if (i < DEATH_MAXFRAME) {
+				//오른쪽 
+				wsprintf(filepath, L"Resource\\MainCharacter\\death\\right\\Spr_SNB_Death (%d).png", i + 1);//Resource\MainCharacter\death\right\Spr_SNB_Death (1).png"
+				if (FAILED(mc.DeathSprites_Right[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+				//왼쪽
+				wsprintf(filepath, L"Resource\\MainCharacter\\death\\left\\Spr_SNB_Death (%d).png", i + 1);//Resource\MainCharacter\death\left\Spr_SNB_Death (1).png"
+				if (FAILED(mc.DeathSprites_Left[i].Load(filepath))) { //로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+			}
+
 		}//sprite load for문 끝
 
 
@@ -462,18 +619,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		// ==================================================
 		// 적 그리기
 		// ==================================================
-#define ISSWINGING 1
-#define ISJUMPING 2
-#define ISLANDING 3
-#define ISSWINGJUMPING 4
-#define ISSTARTINGRUN 5
-#define ISRUNNING 6
-#define ISSTOPPING 7
-#define ISDAMAGED 8
-#define ISFALLING 9
+
+
+
 #define ONWALL 10
-
-
 		// ==================================================
 		// 주인공 그리기
 		// ==================================================
@@ -496,10 +645,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			}
 			case ISRUNNING: {
 
-				//running 에서 8번 이미지가 누락되어있어서 그거 스킵 배열인덱스 7번
-				if (mc.state == ISRUNNING && frame == 7) {
-					break;
-				}
+				////running 에서 8번 이미지가 누락되어있어서 그거 스킵 배열인덱스 7번
+				//if (mc.state == ISRUNNING && frame == 7) {
+				//	break;
+				//}
 				mc.RunningSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
 				break;
 			}
@@ -511,6 +660,46 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				mc.JumpingSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
 				break;
 			}
+						  /*	case ISSTARTFALL: {
+								  mc.StartFallSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+								  break;
+							  }*/
+			case ISFALLING: {
+				mc.FallingSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
+			case ISLANDING: {
+				mc.LandingSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
+			case ISSWINGING: {
+				mc.SwingingSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
+			case ISSWINGJUMPING: {
+				mc.SwingJumpingSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
+			case ISDAMAGED: {
+				mc.DamagedSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
+						  /*	case ISCLIMINGBUP: {
+								  mc.ClimbUpSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+								  break;
+							  }
+							  case ISCLIMBINGDOWN: {
+								  mc.ClimbDownSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+								  break;
+							  }
+							  case ISHOLDING: {
+								  mc.ExHoldingBackSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+								  break;
+							  }
+							  case ISDEATH: {
+								  mc.DeathSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+								  break;
+							  }*/
 			default: {
 				hBrush = CreateSolidBrush(RGB(255, 0, 0));
 				SelectObject(mDC, hBrush);
@@ -522,14 +711,84 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			}//switch문 끝
 		}
 		else {//왼쪽 방향
-			hBrush = CreateSolidBrush(RGB(255, 0, 0));
-			SelectObject(mDC, hBrush);
-			Ellipse(mDC, mc.x - cam.x, mc.y - cam.y, mc.x - cam.x + MCHORIZONALSIZE, mc.y - cam.y + MCVERTICALSIZE);
-			DeleteObject(hBrush);
-		}
+			switch (mc.state) {
+			case ISSTANDING: {
+				mc.StandingSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
+			case ISSTARTINGRUN: {
+				mc.StartRunSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
+			case ISRUNNING: {
+
+				////running 에서 8번 이미지가 누락되어있어서 그거 스킵 배열인덱스 7번
+				//if (mc.state == ISRUNNING && frame == 7) {
+				//	break;
+				//}
+				mc.RunningSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
+			case ISSTOPPING: {
+				mc.StopRunSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
+			case ISJUMPING: {
+				mc.JumpingSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
+						  /*	case ISSTARTFALL: {
+								  mc.StartFallSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+								  break;
+							  }*/
+			case ISFALLING: {
+				mc.FallingSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
+			case ISLANDING: {
+				mc.LandingSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
+			case ISSWINGING: {
+				mc.SwingingSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
+			case ISSWINGJUMPING: {
+				mc.SwingJumpingSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
+			case ISDAMAGED: {
+				mc.DamagedSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
+						  /*	case ISCLIMINGBUP: {
+								  mc.ClimbUpSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+								  break;
+							  }
+							  case ISCLIMBINGDOWN: {
+								  mc.ClimbDownSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+								  break;
+							  }
+							  case ISHOLDING: {
+								  mc.ExHoldingBackSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+								  break;
+							  }
+							  case ISDEATH: {
+								  mc.DeathSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+								  break;
+							  }*/
+			default: {
+				hBrush = CreateSolidBrush(RGB(255, 0, 0));
+				SelectObject(mDC, hBrush);
+				Ellipse(mDC, mc.x - cam.x, mc.y - cam.y, mc.x - cam.x + MCHORIZONALSIZE, mc.y - cam.y + MCVERTICALSIZE);
+				DeleteObject(hBrush);
+				break;
+			}
+			}//switch문 끝
+		}//주인공 좌/우if문 끝
 
 
-		// 상태 확인용
+			// 상태 확인용
 		TCHAR tchar[10];
 		wsprintf(tchar, L"%d %d", mc.state, mc.isGrounded);
 		TextOut(mDC, 10, 10, tchar, lstrlen(tchar));
@@ -582,7 +841,7 @@ void GameUpdateProc(HWND hWnd)
 	rightCol = (mc.x + MCHORIZONALSIZE - 1) / PLATFORMSIZE;
 	topRow = tempY / PLATFORMSIZE;
 	bottomRow = (tempY + MCVERTICALSIZE - 1) / PLATFORMSIZE;
-	
+
 	// 가속도 설정, Y방향 중력 가속도 반영
 	mc.accX = 0, mc.accY = GRAVITY;
 
@@ -627,7 +886,7 @@ void GameUpdateProc(HWND hWnd)
 		}
 		tempY = mc.y;
 	}
-	
+
 	// 점프
 	if ((mc.isGrounded || mc.state == ONWALL) && mc.canjump) {
 		mc.oldY = mc.y + MCJUMPACC;
@@ -654,7 +913,7 @@ void GameUpdateProc(HWND hWnd)
 		mc.x = mc.x + (mc.x - mc.oldX) * frictionX + mc.accX;
 		mc.y = mc.y + (mc.y - mc.oldY) * frictionY + mc.accY;
 	}
-	
+
 	// 로프 걸려있을 때 위치 보정
 	if (mc.state == ISSWINGING) {
 		float centerX = mc.x + (MCHORIZONALSIZE / 2);
@@ -738,7 +997,7 @@ void GameUpdateProc(HWND hWnd)
 		SetCharacterState(ISFALLING);//mc.state = ISFALLING;
 	}
 	// 주인공 상태 - 가만히 서있음																										//mc.state != ISSTOPPING 추가 //stopping 하고 standing하도록
-	if (abs(mc.x - mc.oldX) < 0.001f && mc.isGrounded && mc.state != ISSWINGING && mc.state != ISLANDING && mc.state != ONWALL && mc.state != ISSTOPPING) { //(mc.x - mc.oldX) == 0 --> abs(mc.x - mc.oldX)로 변경 이유 절댓값을 이용해야하고, 실수는 0이 될수 없음
+	if (abs(mc.x - mc.oldX) < 0.01f && mc.isGrounded && mc.state != ISSWINGING && mc.state != ISLANDING && mc.state != ONWALL && mc.state != ISSTOPPING) { //(mc.x - mc.oldX) == 0 --> abs(mc.x - mc.oldX)로 변경 이유 절댓값을 이용해야하고, 실수는 0이 될수 없음
 		mc.x = mc.oldX; // 미세하게 움직이는 물리 좌표를 완전히 고정
 		SetCharacterState(ISSTANDING);//mc.state = ISSTANDING;
 	}
@@ -795,7 +1054,7 @@ void GameUpdateProc(HWND hWnd)
 		mc.currentFrame++; // 다음 프레임으로 이동
 
 
-		
+
 		// 마지막 프레임에 도달하면 다시 처음으로 루프
 		if (mc.currentFrame >= mc.maxFrame) {
 			mc.currentFrame = 0;
@@ -811,7 +1070,7 @@ void GameUpdateProc(HWND hWnd)
 				SetCharacterState(ISSTANDING);
 			}
 
-			
+
 		}
 		mc.lastAnimTime = currentTime; // 시간 갱신
 	}
@@ -831,7 +1090,7 @@ bool isOutMap(float x, float y) {
 	if (x > PLATFORMMAXCOL * PLATFORMSIZE) return true;
 	if (y > PLATFORMMAXROW * PLATFORMSIZE) return true;
 	return false;
-} 
+}
 
 //주인공의 상태를 변경하는 함수 //상태당 애니메이션에 필요한 설정도 같이함
 void SetCharacterState(int newState)
@@ -878,17 +1137,17 @@ void SetCharacterState(int newState)
 		mc.maxFrame = ;
 		mc.animDelay = 100;
 		break;*/
-	/*case ISSWINGING:
-		mc.maxFrame = ;
+	case ISSWINGING:
+		mc.maxFrame = SWINGING_MAXFRAME;
 		mc.animDelay = 100;
-		break;*/
-	/*case ISSWINGJUMPING:
-		mc.maxFrame = ;
+		break;
+	case ISSWINGJUMPING:
+		mc.maxFrame = SWINGJUMP_MAXFRAME;
 		mc.animDelay = 100;
-		break;*/
-	/*case ISDAMAGED:
-		mc.maxFrame = ;
+		break;
+	case ISDAMAGED:
+		mc.maxFrame = DAMAGED_MAXFRAME;
 		mc.animDelay = 100;
-		break;*/
+		break;
 	}
 }
