@@ -114,7 +114,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			ofstream out{ "Platform_Info.txt" };
 			for (int i = 0; i < PLATFORMMAXROW; i++) {
 				for (int j = 0; j < PLATFORMMAXCOL; j++) {
-					int pinfo;
+					int pinfo = 0;
 					if (p[i][j].isPlatform) pinfo = p[i][j].type[0] * 1000 + p[i][j].type[1] * 100 + p[i][j].type[2] * 10 + p[i][j].type[3];
 					else if (p[i][j].isEnemy) {
 						if (p[i][j].enemyType == ENEMY_TROOPER) {
@@ -254,6 +254,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			srow = my / 25, scol = mx / 25;
 			srow += c.r, scol += c.c;
 			p[srow][scol].isPlatform = 0;
+			for (int i = 0; i < 4; i++) p[srow][scol].type[i] = 1;
 			p[srow][scol].isEnemy = 0;
 		}
 		InvalidateRect(hWnd, NULL, false);

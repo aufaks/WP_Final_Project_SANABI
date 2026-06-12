@@ -70,10 +70,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 	return Message.wParam;
 }
 
-#define GRAVITY 0.88
-#define MCWALLCIMBSPEED 3
+#define GRAVITY 0.8
+#define MCWALLCIMBSPEED 4
 #define MCMOVESPEED 0.9
-#define MCJUMPACC 18
+#define MCJUMPACC 20
 #define MAXROPELEN 400
 #define MAXROPESHOOTLEN 600
 
@@ -227,6 +227,10 @@ struct ENEMY_TROOPER {
 };
 
 #define TURRETSIZE 50
+#define TERRET_TOP 0
+#define TERRET_RIGHT 1
+#define TERRET_BOTTOM 2
+#define TERRET_LEFT 3
 
 struct ENEMY_TURRET {
 	float x, y, direction;
@@ -237,6 +241,8 @@ struct ENEMY_TURRET {
 
 // °¡·Î ¼¼·Î µ¿ÀÏ (100x100) ÇÃ·§Æû 2Ä­ x 2Ä­
 #define DEFENDERSIZE 100
+#define DEFENDER_LEFT 1
+#define DEFENDER_RIGHT 2
 
 struct ENEMY_DEFENDER {
 	float x, y;
@@ -322,17 +328,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						//trooper[troopersNum].state =
 						troopersNum++;
 					}
-					else if (PlatformInfo == 8) {
+					else if (PlatformInfo / 10 == 8) {
 						turret[turretsNum].x = x;
 						turret[turretsNum].y = y;
 						turret[turretsNum].activated = false;
+						turret[turretsNum].stickDirection = PlatformInfo % 10;
 						//turret[turretsNum].state =
 						turretsNum++;
 					}
-					else if (PlatformInfo == 9) {
+					else if (PlatformInfo / 10 == 9) {
 						defender[defendersNum].x = x;
 						defender[defendersNum].y = y - PLATFORMSIZE;
 						defender[defendersNum].activated = false;
+						defender[defendersNum].facingDirection = PlatformInfo % 10;
 						//defender[defendersNum].state = 
 						defendersNum++;
 					}
@@ -1021,7 +1029,7 @@ void GameUpdateProc(HWND hWnd)
 		}
 		// ¾Æ·¡ ÀÌµ¿
 		if (keys['S']) {
-			mc.y += MCWALLCIMBSPEED;
+			mc.y += (MCWALLCIMBSPEED + 1);
 			mc.climbingDirection = CLIMBING_DOWN;
 
 			// º® ¾Æ·¡°¡ ¾øÀ¸¸é ¶³¾îÁü
