@@ -31,7 +31,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 	WndClass.hIconSm = LoadIcon(NULL, IDI_APPLICATION);
 	RegisterClassEx(&WndClass);
 
-	hWnd = CreateWindow(lpszClass, lpszWindowName, WS_OVERLAPPEDWINDOW, 0, 0, 1200, 700, NULL, (HMENU)NULL, hInstance, NULL);
+	hWnd = CreateWindow(lpszClass, lpszWindowName, WS_OVERLAPPEDWINDOW, 0, 0, 1200, 750, NULL, (HMENU)NULL, hInstance, NULL);
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
 
@@ -53,13 +53,21 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 #define PLATFORMMAXCOL 1000
 #define PLATFORMSIZE 50
 
+#define ENEMY_TROOPER 7				// 사람 같이 생긴 로봇
+#define ENEMY_TURRET 8				// 터렛
+#define ENEMY_SHEILD 9				// 방패 있는 큰 로봇
+
 struct PLATFORM {
 	bool isPlatform;
 	// 0: connected 1: canhook 2:cannothook 3: damage  --> WPFP project와 통일하기로	1:connect, 2:canhook, 3:cannothook, 4:damage
 	int type[4];
+	bool isEnemy;
+	int enemyType;
 	PLATFORM() {
 		isPlatform = false;
 		for (int i = 0; i < 4; i++) type[i] = 1;
+		isEnemy = false;
+		enemyType = 7;
 	}
 };
 
@@ -105,6 +113,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				for (int j = 0; j < PLATFORMMAXCOL; j++) {
 					int pinfo;
 					if (p[i][j].isPlatform) pinfo = p[i][j].type[0] * 1000 + p[i][j].type[1] * 100 + p[i][j].type[2] * 10 + p[i][j].type[3];
+					else if (p[i][j].isEnemy) {
+						pinfo = p[i][j].enemyType;
+					}
 					else pinfo = 0;
 					out << pinfo << " ";
 				}
@@ -167,6 +178,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			else if (wParam == '4') {
 				p[srow][scol].type[sside] = 4;
 			}
+			else if (wParam == '7') {
+				p[srow][scol].isPlatform = false;
+				p[srow][scol].isEnemy = true;
+				p[srow][scol].enemyType = ENEMY_TROOPER;
+			}
+			else if (wParam == '8') {
+				p[srow][scol].isPlatform = false;
+				p[srow][scol].isEnemy = true;
+				p[srow][scol].enemyType = ENEMY_TURRET;
+			}
+			else if (wParam == '9') {
+				p[srow][scol].isPlatform = false;
+				p[srow][scol].isEnemy = true;
+				p[srow][scol].enemyType = ENEMY_SHEILD;
+			}
 		}
 
 		InvalidateRect(hWnd, NULL, false);
@@ -214,6 +240,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				srow = my / 25, scol = mx / 25;
 				srow += c.r, scol += c.c;
 				p[srow][scol].isPlatform = 0;
+				for (int i = 0; i < 4; i++) p[srow][scol].type[i] = 1;
+				p[srow][scol].isEnemy = 0;
 			}
 		}
 		else break;
@@ -276,6 +304,26 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						SelectObject(mDC, GetStockObject(BLACK_PEN));
 					}
 				}
+				else if (p[i][j].isEnemy) {
+					if (p[i][j].enemyType == ENEMY_TROOPER) {
+						hBrush = CreateSolidBrush(RGB(0, 255, 0));
+						SelectObject(mDC, hBrush);
+						Rectangle(mDC, x, y, x + 25, y + 25);
+						DeleteObject(hBrush);
+					}
+					else if (p[i][j].enemyType == ENEMY_TURRET) {
+						hBrush = CreateSolidBrush(RGB(0, 0, 255));
+						SelectObject(mDC, hBrush);
+						Rectangle(mDC, x, y, x + 25, y + 25);
+						DeleteObject(hBrush);
+					}
+					else if (p[i][j].enemyType == ENEMY_SHEILD) {
+						hBrush = CreateSolidBrush(RGB(100, 100, 100));
+						SelectObject(mDC, hBrush);
+						Rectangle(mDC, x, y, x + 25, y + 25);
+						DeleteObject(hBrush);
+					}
+				}
 			}
 		}
 
@@ -293,6 +341,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		TCHAR inst[120];
 		wsprintf(inst, L"1. CONNECT - 없 2. CANHOOK - 노랑, 3. CANNOTHOOK - 초록, 4.DAMAGE - 빨강            저장: P, 로드: L"); // WPFP project와 통일하기로	1:connect, 2:canhook, 3:cannothook, 4:damage
 		TextOut(mDC, 80, 600, inst, lstrlen(inst));
+
+		TCHAR inst2[120];
+		wsprintf(inst, L"7. TROOPER - 초록 8. TURRET - 파랑 9. SHEILD - 회색");
+		TextOut(mDC, 80, 650, inst, lstrlen(inst));
 
 		BitBlt(hDC, 0, 0, rect.right, rect.bottom, mDC, 0, 0, SRCCOPY);
 		DeleteDC(mDC);
