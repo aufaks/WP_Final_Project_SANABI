@@ -70,7 +70,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 	return Message.wParam;
 }
 
-#define GRAVITY 0.9
+#define GRAVITY 0.89
 #define MCWALLCIMBSPEED 3
 #define MCMOVESPEED 0.9
 #define MCJUMPACC 18
@@ -93,6 +93,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 #define ISDAMAGED 8
 #define ISFALLING 9
 #define ONWALL 10
+#define ISWALLCLIMBING_UP 11
+#define ISWALLCLIMBING_DOWN 12
 
 //상태에 따른 애니메이션 최대 프레임 개수- 더 추가예정, 그런데 상태에 따른 애니메이션 이미지 종류보다 현재 mc.state의 상태가 부족함.(fall_start, wall_climbUP/Down, Death, holding 등). 
 #define STARTRUN_MAXFRAME 2
@@ -531,7 +533,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		if (anch.length > 15) SetCharacterState(ISSWINGING);//mc.state = ISSWINGING;
 		break;
 	case WM_LBUTTONUP:
-		if ((mc.x - mc.oldX) * (mc.x - mc.oldX) > 100) SetCharacterState(ISSWINGJUMPING);//mc.state = ISSWINGJUMPING;
+		if ((mc.oldY - mc.y) > 10) SetCharacterState(ISSWINGJUMPING);//mc.state = ISSWINGJUMPING;
 		else SetCharacterState(ISFALLING);//mc.state = ISFALLING;
 		break;
 	case WM_MOUSEMOVE:
@@ -836,6 +838,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	return DefWindowProc(hWnd, uMsg, wParam, lParam);
 }
 
+// =============================================== GameUpdateProc ===========================
 void GameUpdateProc(HWND hWnd)
 {
 	if (!gameStart) return;
@@ -866,10 +869,11 @@ void GameUpdateProc(HWND hWnd)
 		}
 	}
 	// 벽타기 중
-	if (mc.state == ONWALL) {
+	if (mc.state == ONWALL || mc.state == ISWALLCLIMBING_UP || mc.state == ISWALLCLIMBING_DOWN) {
 		// 위 이동
 		if (keys['W']) {
 			mc.y -= MCWALLCIMBSPEED;
+			SetCharacterState(ISWALLCLIMBING_UP);//mc.state = ISCLIMBING_UP;
 
 			// 벽 끝까지 올라가면 점프
 			if ((mc.facingDirection == FACING_LEFT && (!platforms[topRow][leftCol - 1].isPlatform || platforms[topRow][leftCol - 1].type[WALL_RIGHT] != WALL_CANHOOK))
@@ -885,12 +889,17 @@ void GameUpdateProc(HWND hWnd)
 		// 아래 이동
 		if (keys['S']) {
 			mc.y += MCWALLCIMBSPEED;
+			SetCharacterState(ISWALLCLIMBING_DOWN);//mc.state = ISCLIMBING_DOWN;
 
 			// 벽 아래가 없으면 떨어짐
 			if ((mc.facingDirection == FACING_LEFT && (!platforms[topRow][leftCol - 1].isPlatform || platforms[topRow][leftCol - 1].type[WALL_RIGHT] != WALL_CANHOOK))
 				|| (mc.facingDirection == FACING_RIGHT && (!platforms[topRow][rightCol + 1].isPlatform || platforms[topRow][rightCol + 1].type[WALL_LEFT] != WALL_CANHOOK))) {
 				SetCharacterState(ISFALLING);//mc.state = ISFALLING;
 			}
+		}
+		// 벽에 붙어서 가만히 있으면
+		if (abs(mc.oldY - mc.y) < 1) {
+			SetCharacterState(ONWALL);//mc.state = ONWALL;
 		}
 		tempY = mc.y;
 	}
@@ -912,7 +921,7 @@ void GameUpdateProc(HWND hWnd)
 	// 로프 매달려 있을 때 저항 줄임
 	float frictionX, frictionY;
 	if (mc.state == ISSWINGING) frictionX = 0.99;
-	else frictionX = 0.9;
+	else frictionX = 0.85;
 	if (mc.state == ISSWINGING) frictionY = 0.999;
 	else frictionY = 0.95;
 
