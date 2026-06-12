@@ -55,7 +55,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 
 #define ENEMY_TROOPER 7				// 사람 같이 생긴 로봇
 #define ENEMY_TURRET 8				// 터렛
-#define ENEMY_SHEILD 9				// 방패 있는 큰 로봇
+#define ENEMY_DEFENDER 9			// 방패 있는 큰 로봇
 
 struct PLATFORM {
 	bool isPlatform;
@@ -63,11 +63,14 @@ struct PLATFORM {
 	int type[4];
 	bool isEnemy;
 	int enemyType;
+	// 플랫폼이 적일 때 적 타입에 따른 추가 정보 ex) 터렛이 어느 방향 벽에 붙어있는지, 방패가 어느 방향인지
+	int enemyPoint;
 	PLATFORM() {
 		isPlatform = false;
 		for (int i = 0; i < 4; i++) type[i] = 1;
 		isEnemy = false;
 		enemyType = 7;
+		enemyPoint = 2;
 	}
 };
 
@@ -114,7 +117,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					int pinfo;
 					if (p[i][j].isPlatform) pinfo = p[i][j].type[0] * 1000 + p[i][j].type[1] * 100 + p[i][j].type[2] * 10 + p[i][j].type[3];
 					else if (p[i][j].isEnemy) {
-						pinfo = p[i][j].enemyType;
+						if (p[i][j].enemyType == ENEMY_TROOPER) {
+							pinfo = 7;
+						}
+						else if (p[i][j].enemyType == ENEMY_TURRET) {
+							pinfo = 80 + p[i][j].enemyPoint;
+						}
+						else if (p[i][j].enemyType == ENEMY_DEFENDER) {
+							pinfo = 90 + p[i][j].enemyPoint;
+						}
 					}
 					else pinfo = 0;
 					out << pinfo << " ";
@@ -129,9 +140,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					int pinfo;
 					in >> pinfo;
 					if (pinfo == 0) p[i][j].isPlatform = 0;
-					else if (pinfo == 7 || pinfo == 8 || pinfo == 9) {
+					else if (pinfo == 7) {
 						p[i][j].isEnemy = true;
-						p[i][j].enemyType = pinfo;
+						p[i][j].enemyType = ENEMY_TROOPER;
+					}
+					else if (pinfo / 10 == 8) {
+						p[i][j].isEnemy = true;
+						p[i][j].enemyType = ENEMY_TURRET;
+						p[i][j].enemyPoint = pinfo % 10;
+					}
+					else if (pinfo / 10 == 9) {
+						p[i][j].isEnemy = true;
+						p[i][j].enemyType = ENEMY_DEFENDER;
+						p[i][j].enemyPoint = pinfo % 10;
 					}
 					else {
 						p[i][j].isPlatform = true;
@@ -157,16 +178,30 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			if (c.c < 960) c.c += 20;
 		}
 		else if (wParam == VK_UP) {
-			sside = 0;	
+			if (p[srow][scol].isPlatform) sside = 0;
+			else if (p[srow][scol].isEnemy) {
+				if (p[srow][scol].enemyType == ENEMY_TURRET) p[srow][scol].enemyPoint = 0;
+			}
 		}
 		else if (wParam == VK_RIGHT) {
-			sside = 1;
+			if (p[srow][scol].isPlatform) sside = 1;
+			else if (p[srow][scol].isEnemy) {
+				if (p[srow][scol].enemyType == ENEMY_TURRET) p[srow][scol].enemyPoint = 1;
+				else if (p[srow][scol].enemyType == ENEMY_DEFENDER) p[srow][scol].enemyPoint = 1;
+			}
 		}
 		else if (wParam == VK_DOWN) {
-			sside = 2;
+			if (p[srow][scol].isPlatform) sside = 2;
+			else if (p[srow][scol].isEnemy) {
+				if (p[srow][scol].enemyType == ENEMY_TURRET) p[srow][scol].enemyPoint = 2;
+			}
 		}
 		else if (wParam == VK_LEFT) {
-			sside = 3;
+			if (p[srow][scol].isPlatform) sside = 3;
+			else if (p[srow][scol].isEnemy) {
+				if (p[srow][scol].enemyType == ENEMY_TURRET) p[srow][scol].enemyPoint = 3;
+				else if (p[srow][scol].enemyType == ENEMY_DEFENDER) p[srow][scol].enemyPoint = 2;
+			}
 		}
 												
 		if (srow >= 0 && scol >= 0) {   	// WPFP project와 통일하기로	1:connect, 2:canhook, 3:cannothook, 4:damage
@@ -195,7 +230,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			else if (wParam == '9') {
 				p[srow][scol].isPlatform = false;
 				p[srow][scol].isEnemy = true;
-				p[srow][scol].enemyType = ENEMY_SHEILD;
+				p[srow][scol].enemyType = ENEMY_DEFENDER;
 			}
 		}
 
@@ -208,6 +243,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			srow = my / 25, scol = mx / 25;
 			srow += c.r, scol += c.c;
 			p[srow][scol].isPlatform = 1;
+			p[srow][scol].isEnemy = 0;
 		}
 		InvalidateRect(hWnd, NULL, false);
 		break;
@@ -218,6 +254,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			srow = my / 25, scol = mx / 25;
 			srow += c.r, scol += c.c;
 			p[srow][scol].isPlatform = 0;
+			p[srow][scol].isEnemy = 0;
 		}
 		InvalidateRect(hWnd, NULL, false);
 		break;
@@ -236,6 +273,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				srow = my / 25, scol = mx / 25;
 				srow += c.r, scol += c.c;
 				p[srow][scol].isPlatform = 1;
+				p[srow][scol].isEnemy = 0;
 			}
 		}
 		else if (rb) {
@@ -320,12 +358,32 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						SelectObject(mDC, hBrush);
 						Rectangle(mDC, x, y, x + 25, y + 25);
 						DeleteObject(hBrush);
+						int x1, y1, x2, y2, k = p[i][j].enemyPoint;
+						if (k == 0) x1 = x, y1 = y, x2 = x + 25, y2 = y;					//위
+						else if (k == 1) x1 = x + 25, y1 = y, x2 = x + 25, y2 = y + 25;		//오른
+						else if (k == 2) x1 = x, y1 = y + 25, x2 = x + 25, y2 = y + 25;		//아래
+						else if (k == 3) x1 = x, y1 = y, x2 = x, y2 = y + 25;				//왼
+						hPen = CreatePen(0, 3, RGB(255, 0, 0));
+						SelectObject(mDC, hPen);
+						MoveToEx(mDC, x1, y1, NULL);
+						LineTo(mDC, x2, y2);
+						DeleteObject(hPen);
+						SelectObject(mDC, GetStockObject(BLACK_PEN));
 					}
-					else if (p[i][j].enemyType == ENEMY_SHEILD) {
+					else if (p[i][j].enemyType == ENEMY_DEFENDER) {
 						hBrush = CreateSolidBrush(RGB(100, 100, 100));
 						SelectObject(mDC, hBrush);
 						Rectangle(mDC, x, y, x + 25, y + 25);
 						DeleteObject(hBrush);
+						int x1, y1, x2, y2, k = p[i][j].enemyPoint;
+						if (k == 1) x1 = x + 25, y1 = y, x2 = x + 25, y2 = y + 25;			//오른
+						else if (k == 2) x1 = x, y1 = y , x2 = x, y2 = y + 25;				//왼
+						hPen = CreatePen(0, 3, RGB(255, 0, 0));
+						SelectObject(mDC, hPen);
+						MoveToEx(mDC, x1, y1, NULL);
+						LineTo(mDC, x2, y2);
+						DeleteObject(hPen);
+						SelectObject(mDC, GetStockObject(BLACK_PEN));
 					}
 				}
 			}
@@ -347,7 +405,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		TextOut(mDC, 80, 600, inst, lstrlen(inst));
 
 		TCHAR inst2[120];
-		wsprintf(inst, L"7. TROOPER - 초록 8. TURRET - 파랑 9. SHEILD - 회색");
+		wsprintf(inst, L"7. TROOPER - 초록 8. TURRET - 파랑 9. DEFENDER - 회색");
 		TextOut(mDC, 80, 650, inst, lstrlen(inst));
 
 		BitBlt(hDC, 0, 0, rect.right, rect.bottom, mDC, 0, 0, SRCCOPY);
