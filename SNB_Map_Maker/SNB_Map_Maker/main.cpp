@@ -129,6 +129,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					int pinfo;
 					in >> pinfo;
 					if (pinfo == 0) p[i][j].isPlatform = 0;
+					else if (pinfo == 7 || pinfo == 8 || pinfo == 9) {
+						p[i][j].isEnemy = true;
+						p[i][j].enemyType = pinfo;
+					}
 					else {
 						p[i][j].isPlatform = true;
 						p[i][j].type[0] = pinfo / 1000;
