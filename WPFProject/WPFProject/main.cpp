@@ -215,18 +215,34 @@ struct BULLET {
 	int type;
 };
 
+#define ENEMY_ISWAITING 0
+
+// 가로 세로 동일 (50x50) 플랫폼 한 칸 크기
+#define TROOPERSIZE 50
+
 struct ENEMY_TROOPER {
 	float x, y, direction;
+	int state;
+	bool activated;
 };
+
+#define TURRETSIZE 50
 
 struct ENEMY_TURRET {
 	float x, y, direction;
 	int stickDirection;			// 벽에 붙어있는 방향 (어느쪽 벽에 붙어있는지)
+	int state;
+	bool activated;
 };
+
+// 가로 세로 동일 (100x100) 플랫폼 2칸 x 2칸
+#define DEFENDERSIZE 100
 
 struct ENEMY_DEFENDER {
 	float x, y;
 	bool facingDirection;		// 보고 있는 방향 (방패 방향)
+	int state;
+	bool activated;
 };
 
 #define PLATFORMMAXROW 500
@@ -257,8 +273,15 @@ ANCHOR anch;
 CAMERA cam;
 PLATFORM platforms[PLATFORMMAXROW][PLATFORMMAXCOL];
 
-BULLET bullets[100];
+BULLET bullets[200];
 int bulletsNum = 0;
+
+ENEMY_TROOPER trooper[100];
+int troopersNum = 0;
+ENEMY_TURRET turret[100];
+int turretsNum = 0;
+ENEMY_DEFENDER defender[100];
+int defendersNum = 0;
 
 bool keys[256] = { 0 };
 
@@ -288,9 +311,31 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			ifstream in{ "Platform_Info.txt" };
 			for (int i = 0; i < PLATFORMMAXROW; i++) {
 				for (int j = 0; j < PLATFORMMAXCOL; j++) {
+					float x = j * PLATFORMSIZE, y = i * PLATFORMSIZE;
 					int PlatformInfo;
 					in >> PlatformInfo;
 					if (PlatformInfo == 0) platforms[i][j].isPlatform = 0;
+					else if (PlatformInfo == 7) {
+						trooper[troopersNum].x = x;
+						trooper[troopersNum].y = y;
+						trooper[troopersNum].activated = false;
+						//trooper[troopersNum].state =
+						troopersNum++;
+					}
+					else if (PlatformInfo == 8) {
+						turret[turretsNum].x = x;
+						turret[turretsNum].y = y;
+						turret[turretsNum].activated = false;
+						//turret[turretsNum].state =
+						turretsNum++;
+					}
+					else if (PlatformInfo == 9) {
+						defender[defendersNum].x = x;
+						defender[defendersNum].y = y - PLATFORMSIZE;
+						defender[defendersNum].activated = false;
+						//defender[defendersNum].state = 
+						defendersNum++;
+					}
 					else {
 						platforms[i][j].isPlatform = true;
 						platforms[i][j].type[0] = PlatformInfo / 1000;
@@ -1127,8 +1172,51 @@ void GameUpdateProc(HWND hWnd)
 	// ==================================================
 	// 적 움직임
 	// ==================================================
-	// 주인공과 어느정도 가까워지면 활성화
-	// 다시 멀어지면 비활성화
+	
+	// trooper
+	for (int i = 0; i < troopersNum; i++) {
+		if (trooper[i].activated) {
+			if (Distance(mc.x, mc.y, trooper[i].x, trooper[i].y) > 1000) {
+				trooper[i].activated = false;
+			}
+			// 조준 - 공격
+		}
+		else {
+			if (Distance(mc.x, mc.y, trooper[i].x, trooper[i].y) < 1000) {
+				trooper[i].activated = true;
+			}
+		}
+	}
+
+	// turret
+	for (int i = 0; i < turretsNum; i++) {
+		if (turret[i].activated) {
+			if (Distance(mc.x, mc.y, turret[i].x, turret[i].y) > 1000) {
+				turret[i].activated = false;
+			}
+			// 조준 - 공격
+		}
+		else {
+			if (Distance(mc.x, mc.y, turret[i].x, turret[i].y) < 1000) {
+				turret[i].activated = true;
+			}
+		}
+	}
+
+	// defender
+	for (int i = 0; i < defendersNum; i++) {
+		if (defender[i].activated) {
+			if (Distance(mc.x, mc.y, defender[i].x, defender[i].y) > 1000) {
+				defender[i].activated = false;
+			}
+			// 조준 - 공격
+		}
+		else {
+			if (Distance(mc.x, mc.y, defender[i].x, defender[i].y) < 1000) {
+				defender[i].activated = true;
+			}
+		}
+	}
 
 
 	// ==================================================
@@ -1138,6 +1226,9 @@ void GameUpdateProc(HWND hWnd)
 		int bulletRow = bullets[i].y / PLATFORMSIZE, bulletCol = bullets[i].x / PLATFORMSIZE;
 		if (bullets[i].type == BULLET_SMALL) {
 			// 이동
+			
+
+
 			// 벽에 부딪히면 삭제
 			if (platforms[bulletRow][bulletCol].isPlatform || isOutMap(bullets[i].x, bullets[i].y)) {
 				for (int j = i; j < bulletsNum - 1; j++) {
