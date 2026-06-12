@@ -70,14 +70,19 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 	return Message.wParam;
 }
 
-#define GRAVITY 0.89
+#define GRAVITY 0.88
 #define MCWALLCIMBSPEED 3
 #define MCMOVESPEED 0.9
 #define MCJUMPACC 18
-#define MAXROPELEN 300
+#define MAXROPELEN 400
+#define MAXROPESHOOTLEN 600
 
 #define FACING_LEFT 0
 #define FACING_RIGHT 1
+
+#define NO_CLIMBING 0
+#define CLIMBING_UP 1
+#define CLIMBING_DOWN 2
 
 #define MCVERTICALSIZE 50	//30 //테스트로 크기 변경해봄
 #define MCHORIZONALSIZE 30	//30
@@ -128,6 +133,7 @@ struct MAINCHARACTER {
 	float oldX, oldY, accX, accY;
 	int hp;
 	int state;
+	int climbingDirection;
 	bool isGrounded, facingDirection, canjump, isInvincible;
 	//애니메이션용 변수
 	int currentFrame;     // 현재 프레임 번호
@@ -182,6 +188,7 @@ struct MAINCHARACTER {
 		isGrounded = false;
 		state = ISSTANDING;
 		facingDirection = FACING_RIGHT;
+		climbingDirection = NO_CLIMBING;
 		isInvincible = false;
 		//애니메이션용 변수
 		currentFrame = 0;
@@ -526,11 +533,92 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		break;
 	case WM_LBUTTONDOWN:			// 좌클릭
 		mx = LOWORD(lParam), my = HIWORD(lParam);
-		anch.x = mx + cam.x, anch.y = my + cam.y;
-		dx = mc.x + MCHORIZONALSIZE - anch.x;
-		dy = mc.y + MCVERTICALSIZE - anch.y;
-		anch.length = sqrt(dx * dx + dy * dy);
-		if (anch.length > 15) SetCharacterState(ISSWINGING);//mc.state = ISSWINGING;
+		{
+			float mouseX = mx + cam.x, mouseY = my + cam.y;
+			float centerX = mc.x + (MCHORIZONALSIZE / 2), centerY = mc.y + (MCVERTICALSIZE / 2);
+
+			// 기울기 (방향) 구하기 위한 요소
+			dx = mouseX - centerX, dy = mouseY - centerY;
+			float anchDist = sqrt(dx * dx + dy * dy);
+			float dirX = dx / anchDist, dirY = dy / anchDist;
+			float curDist = 0;
+			// 광선 발사 플랫폼 체크
+			float step = 5;
+			int oldRow = centerY / PLATFORMSIZE, oldCol = centerX / PLATFORMSIZE;
+			while (curDist < MAXROPESHOOTLEN) {
+				float curX = centerX + (dirX * curDist), curY = centerY + (dirY * curDist);
+				int curRow = curY / PLATFORMSIZE, curCol = curX / PLATFORMSIZE;
+
+				// 배열 밖으로 나가면 종료
+				if (curRow < 0 || curRow >= PLATFORMMAXROW || curCol < 0 || curCol >= PLATFORMMAXCOL) {
+					break;
+				}
+
+				if (platforms[curRow][curCol].isPlatform) {
+					if (curRow > oldRow) {
+						if (platforms[curRow][curCol].type[WALL_TOP] == WALL_CANHOOK) {
+							anch.x = curX, anch.y = curY;
+							float ropeDx = curX - centerX, ropeDy = curY - centerY;
+							anch.length = sqrt(ropeDx * ropeDx + ropeDy * ropeDy);
+							if (anch.length > MAXROPELEN) anch.length = MAXROPELEN;
+							SetCharacterState(ISSWINGING);//mc.state = ISSWINGING;
+						}
+						if (platforms[curRow][curCol].type[WALL_BOTTOM] != WALL_CONNECT) break;
+					}
+					if (curRow < oldRow) {
+						if (platforms[curRow][curCol].type[WALL_BOTTOM] == WALL_CANHOOK) {
+							anch.x = curX, anch.y = curY;
+							float ropeDx = curX - centerX, ropeDy = curY - centerY;
+							anch.length = sqrt(ropeDx * ropeDx + ropeDy * ropeDy);
+							if (anch.length > MAXROPELEN) anch.length = MAXROPELEN;
+							SetCharacterState(ISSWINGING);//mc.state = ISSWINGING;
+						}
+						if (platforms[curRow][curCol].type[WALL_BOTTOM] != WALL_CONNECT) break;
+					}
+					if (curCol < oldCol) {
+						if (platforms[curRow][curCol].type[WALL_RIGHT] == WALL_CANHOOK) {
+							anch.x = curX, anch.y = curY;
+							float ropeDx = curX - centerX, ropeDy = curY - centerY;
+							anch.length = sqrt(ropeDx * ropeDx + ropeDy * ropeDy);
+							if (anch.length > MAXROPELEN) anch.length = MAXROPELEN;
+							SetCharacterState(ISSWINGING);//mc.state = ISSWINGING;
+						}
+						if (platforms[curRow][curCol].type[WALL_BOTTOM] != WALL_CONNECT) break;
+					}
+					if (curCol > oldCol) {
+						if (platforms[curRow][curCol].type[WALL_LEFT] == WALL_CANHOOK) {
+							anch.x = curX, anch.y = curY;
+							float ropeDx = curX - centerX, ropeDy = curY - centerY;
+							anch.length = sqrt(ropeDx * ropeDx + ropeDy * ropeDy);
+							if (anch.length > MAXROPELEN) anch.length = MAXROPELEN;
+							SetCharacterState(ISSWINGING);//mc.state = ISSWINGING;
+						}
+						if (platforms[curRow][curCol].type[WALL_BOTTOM] != WALL_CONNECT) break;
+					}
+				}
+				curDist += step;
+				oldRow = curRow;
+				oldCol = curCol;
+			}
+		}
+
+		if (mc.state == ISSWINGING) {
+			float centerX = mc.x + (MCHORIZONALSIZE / 2);
+			float centerY = mc.y + (MCVERTICALSIZE / 2);
+			float dx = centerX - anch.x;
+			float dy = centerY - anch.y;
+			float currentDist = sqrt(dx * dx + dy * dy);
+			if (currentDist > anch.length) {
+				float ratio = anch.length / currentDist;
+				float targetcenterX = anch.x + dx * ratio;
+				float targetcenterY = anch.y + dy * ratio;
+				mc.x = targetcenterX - (MCHORIZONALSIZE / 2);
+				mc.y = targetcenterY - (MCVERTICALSIZE / 2);
+				mc.oldX = mc.x;
+				mc.oldY = mc.y;
+			}
+		}
+
 		break;
 	case WM_LBUTTONUP:
 		if ((mc.oldY - mc.y) > 10) SetCharacterState(ISSWINGJUMPING);//mc.state = ISSWINGJUMPING;
@@ -869,11 +957,11 @@ void GameUpdateProc(HWND hWnd)
 		}
 	}
 	// 벽타기 중
-	if (mc.state == ONWALL || mc.state == ISWALLCLIMBING_UP || mc.state == ISWALLCLIMBING_DOWN) {
+	if (mc.state == ONWALL) {
 		// 위 이동
 		if (keys['W']) {
 			mc.y -= MCWALLCIMBSPEED;
-			SetCharacterState(ISWALLCLIMBING_UP);//mc.state = ISCLIMBING_UP;
+			mc.climbingDirection = CLIMBING_UP;
 
 			// 벽 끝까지 올라가면 점프
 			if ((mc.facingDirection == FACING_LEFT && (!platforms[topRow][leftCol - 1].isPlatform || platforms[topRow][leftCol - 1].type[WALL_RIGHT] != WALL_CANHOOK))
@@ -889,7 +977,7 @@ void GameUpdateProc(HWND hWnd)
 		// 아래 이동
 		if (keys['S']) {
 			mc.y += MCWALLCIMBSPEED;
-			SetCharacterState(ISWALLCLIMBING_DOWN);//mc.state = ISCLIMBING_DOWN;
+			mc.climbingDirection = CLIMBING_DOWN;
 
 			// 벽 아래가 없으면 떨어짐
 			if ((mc.facingDirection == FACING_LEFT && (!platforms[topRow][leftCol - 1].isPlatform || platforms[topRow][leftCol - 1].type[WALL_RIGHT] != WALL_CANHOOK))
@@ -899,7 +987,7 @@ void GameUpdateProc(HWND hWnd)
 		}
 		// 벽에 붙어서 가만히 있으면
 		if (abs(mc.oldY - mc.y) < 1) {
-			SetCharacterState(ONWALL);//mc.state = ONWALL;
+			mc.climbingDirection = NO_CLIMBING;
 		}
 		tempY = mc.y;
 	}
