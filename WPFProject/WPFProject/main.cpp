@@ -32,7 +32,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 	WNDCLASSEX WndClass;
 	g_hinst = hInstance;
 	LPCTSTR lpszClass = L"My Window Class";
-	LPCTSTR lpszWindowName = L"Window Programming Lab";
+	LPCTSTR lpszWindowName = L"Window Programming Final Project: SANABI";
 
 	WndClass.cbSize = sizeof(WndClass);
 	WndClass.style = CS_HREDRAW | CS_VREDRAW;
@@ -697,15 +697,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				mc.oldX = mc.x;
 				mc.oldY = mc.y;
 			}
+			PlaySFX(L"sfx_grab");
 		}
 
-		PlaySFX(L"sfx_grab");
 		break;
 	case WM_LBUTTONUP:
-		if ((mc.oldY - mc.y) > 10) SetCharacterState(ISSWINGJUMPING);//mc.state = ISSWINGJUMPING;
-		else SetCharacterState(ISFALLING);//mc.state = ISFALLING;
+		if (mc.state == ISSWINGING) {
+			PlaySFX(L"sfx_return");
+			if ((mc.oldY - mc.y) > 10) SetCharacterState(ISSWINGJUMPING);//mc.state = ISSWINGJUMPING;
+			else SetCharacterState(ISFALLING);//mc.state = ISFALLING;
+		}
 
-		PlaySFX(L"sfx_return");
 		break;
 	case WM_MOUSEMOVE:
 		mx = LOWORD(lParam), my = HIWORD(lParam);
