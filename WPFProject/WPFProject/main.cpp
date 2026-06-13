@@ -1211,28 +1211,42 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					if (!trooper[i].alive) continue;
 					int frame = trooper[i].currentFrame;
 
+					//트루퍼 그릴 위치
+					int posx = (int)(trooper[i].x - cam.x);
+					int posy = (int)(trooper[i].y - cam.y);
+
 					if (trooper[i].facingDirection == FACING_RIGHT) {
 						switch (trooper[i].state) {
 						case ENEMY_ISAIMING: {
 							//gun
-							Global_TrooperGun_AimingSprites_Right[frame].Draw(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
+							Global_TrooperGun_AimingSprites_Right[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE );
 							//body
-							Global_TrooperBody_AimingSprites_Right[frame].Draw(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
+							Global_TrooperBody_AimingSprites_Right[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
 							break;
 						}
 						case ENEMY_READYTOSHOOT: {
 							//gun
-							//[frame].Draw(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
+							Global_TrooperGun_Ready2shootSprites_Right[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
 							//body
-							//Global_TurretBody_AimingSprites[frame].Draw(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
+							Global_TrooperBody_Ready2shootSprites_Right[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
 							break;
 						}
-
-						default: {
-
+						case ENEMY_ISSHOOTING: {
+							//gun
+							Global_TrooperGun_ShootingSprites_Right[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+							//body
+							Global_TrooperBody_Ready2shootSprites_Right[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+							break;
+						}
+						case ENEMY_DEAD: {
+							//gun
 							
+							//body
+							Global_TrooperBody_DeadSprites_Right[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+							break;
+						}
+						default: {
 							Rectangle(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
-
 							break;
 						}
 
@@ -1240,9 +1254,44 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					} //오른쪽 끝
 					else { //왼쪽
 
-					}
+							switch (trooper[i].state) {
+							case ENEMY_ISAIMING: {
+								//gun
+								Global_TrooperGun_AimingSprites_Left[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+								//body
+								Global_TrooperBody_AimingSprites_Left[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+								break;
+							}
+							case ENEMY_READYTOSHOOT: {
+								//gun
+								Global_TrooperGun_Ready2shootSprites_Left[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+								//body
+								Global_TrooperBody_Ready2shootSprites_Left[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+								break;
+							}
+							case ENEMY_ISSHOOTING: {
+								//gun
+								Global_TrooperGun_ShootingSprites_Left[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+								//body
+								Global_TrooperBody_Ready2shootSprites_Left[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+								break;
+							}
+							case ENEMY_DEAD: {
+								//gun
 
-				}
+								//body
+								Global_TrooperBody_DeadSprites_Left[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+								break;
+							}
+							default: {
+								Rectangle(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
+								break;
+							}
+
+							}//switch문 끝
+					} //방향 if문 끝
+
+				}//트루퍼 개수 반복문
 			
 			}
 			// turret
@@ -1987,7 +2036,7 @@ void GameUpdateProc(HWND hWnd)
 			}
 			else if (trooper[i].state == ENEMY_ISSHOOTING) {
 				// state 바뀌고 첫 프레임일 때
-				if (1) {
+				if (trooper[i].currentFrame == 0) { //첫프레임 0
 					// 총알 출발 위치 구하기
 					float centerX = trooper[i].x + (TROOPERSIZE / 2), centerY = trooper[i].y + (TROOPERSIZE / 2);
 
@@ -2017,9 +2066,11 @@ void GameUpdateProc(HWND hWnd)
 			// 적이 범위 안에 들어오면 활성화
 			if (Distance(mc.x, mc.y, trooper[i].x, trooper[i].y) < ENEMY_ACTIVATEDISTANCE && trooper[i].alive) {
 				trooper[i].activated = true;
+
+				trooper[i].state == ENEMY_ISAIMING;
+
 				//애니메이션 활성화 및 초기화
 				trooper[i].currentFrame = 0;
-				trooper[i].maxFrame = TROOPER_AIMING_MAXFRAME;
 				trooper[i].lastAnimTime = timeGetTime();
 				trooper[i].animDelay = 100;
 			}
