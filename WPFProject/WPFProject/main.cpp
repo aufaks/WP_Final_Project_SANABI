@@ -17,6 +17,7 @@ bool isOutMap(float x, float y);
 bool isInCamera(float x, float y);
 //주인공의 상태를 변경하는 함수 //상태당 애니메이션에 필요한 설정도 같이함
 void SetCharacterState(int newState);
+
 //효과음을 재생하기 위한 함수
 void PlaySFX(LPCWSTR aliasName); //효과음 별명(alias) 넣으면 되감기 후 재생함.
 
@@ -297,12 +298,6 @@ CImage Global_TrooperGun_Ready2shootSprites_Left[TROOPER_READY2SHOOT_MAXFRAME];
 CImage Global_TrooperBody_AimingSprites_Right[TROOPER_AIMING_MAXFRAME];
 CImage Global_TrooperBody_AimingSprites_Left[TROOPER_AIMING_MAXFRAME];
 
-CImage Global_TrooperBody_ShootingSprites_Right[TROOPER_SHOOTING_MAXFRAME];
-CImage Global_TrooperBody_ShootingSprites_Left[TROOPER_SHOOTING_MAXFRAME];
-
-CImage Global_TrooperBody_Ready2shootSprites_Right[TROOPER_READY2SHOOT_MAXFRAME];
-CImage Global_TrooperBody_Ready2shootSprites_Left[TROOPER_READY2SHOOT_MAXFRAME];
-
 CImage Global_TrooperBody_DeadSprites_Right[TROOPER_DEAD_MAXFRAME];
 CImage Global_TrooperBody_DeadSprites_Left[TROOPER_DEAD_MAXFRAME];
 
@@ -315,12 +310,17 @@ struct ENEMY_TROOPER {
 	bool activated, alive;
 	
 	//애니메이션용 변수
-	int currentFrame;     // 현재 프레임 번호
-	int maxFrame;         // 최대 프레임 수  //state에 따라 갱신됨
+	int currentFrame_body;     // 현재 프레임 번호
+	int currentFrame_gun;     // 현재 프레임 번호
+	int maxFrame_body;         // 최대 프레임 수  //state에 따라 갱신됨
+	int maxFrame_gun;         // 최대 프레임 수  //state에 따라 갱신됨
 	DWORD lastAnimTime;   // 마지막으로 프레임이 바뀐 시간
 	int animDelay;        // 프레임 전환 간격 (밀리초 단위)
 
 };
+//Trooper 상태 변경 //애니메이션 설정도
+void SetTrooperState(ENEMY_TROOPER& trooper, int newState);
+
 
 #define TURRETSIZE 50
 #define TURRET_GUNDISTANCE 20
@@ -330,11 +330,11 @@ struct ENEMY_TROOPER {
 #define TURRET_LEFT 3
 
 //애니메이션 용
-#define TERRET_ALERT_MAXFRAME 4
-#define TERRET_SHOOTING_MAXFRAME 18
-#define TERRET_AIMING_MAXFRAME 11
-#define TERRET_COOLDOWN_MAXFRAME 9
-#define TERRET_DEAD_MAXFRAME 5
+#define TURRET_ALERT_MAXFRAME 4
+#define TURRET_SHOOTING_MAXFRAME 18
+#define TURRET_AIMING_MAXFRAME 11
+#define TURRET_COOLDOWN_MAXFRAME 9
+#define TURRET_DEAD_MAXFRAME 5
 
 struct ENEMY_TURRET {
 	float x, y, shootX, shootY, angle;
@@ -347,16 +347,16 @@ struct ENEMY_TURRET {
 };
 
 
-CImage Global_TurretGun_AimingSprites	[TERRET_AIMING_MAXFRAME];
-CImage Global_TurretGun_ShootingSprites	[TERRET_SHOOTING_MAXFRAME];
-CImage Global_TurretGun_AlertSprites	[TERRET_ALERT_MAXFRAME]	;
-CImage Global_TurretGun_CoolDownSprites	[TERRET_COOLDOWN_MAXFRAME];
+CImage Global_TurretGun_AimingSprites	[TURRET_AIMING_MAXFRAME];
+CImage Global_TurretGun_ShootingSprites	[TURRET_SHOOTING_MAXFRAME];
+CImage Global_TurretGun_AlertSprites	[TURRET_ALERT_MAXFRAME]	;
+CImage Global_TurretGun_CoolDownSprites	[TURRET_COOLDOWN_MAXFRAME];
 
-CImage Global_TurretBody_AimingSprites[TERRET_AIMING_MAXFRAME];
-CImage Global_TurretBody_ShootingSprites[TERRET_SHOOTING_MAXFRAME];
-CImage Global_TurretBody_AlertSprites[TERRET_ALERT_MAXFRAME];
-CImage Global_TurretBody_CoolDownSprites[TERRET_COOLDOWN_MAXFRAME];
-CImage Global_TurretBody_DeadSprites[TERRET_DEAD_MAXFRAME];
+CImage Global_TurretBody_AimingSprites[TURRET_AIMING_MAXFRAME];
+CImage Global_TurretBody_ShootingSprites[TURRET_SHOOTING_MAXFRAME];
+CImage Global_TurretBody_AlertSprites[TURRET_ALERT_MAXFRAME];
+CImage Global_TurretBody_CoolDownSprites[TURRET_COOLDOWN_MAXFRAME];
+CImage Global_TurretBody_DeadSprites[TURRET_DEAD_MAXFRAME];
 
 // 가로 세로 동일 (100x100) 플랫폼 2칸 x 2칸
 #define DEFENDERSIZE 100
@@ -456,13 +456,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						trooper[troopersNum].x = x;
 						trooper[troopersNum].y = y;
 						trooper[troopersNum].activated = false;
-						trooper[troopersNum].state = ENEMY_ISWAITING;
+						SetTrooperState(trooper[troopersNum], ENEMY_ISWAITING);//trooper[troopersNum].state = ENEMY_ISAIMING;//ENEMY_ISWAITING;
 						trooper[troopersNum].alive = true;
-						//애니메이션용 변수
-						trooper[troopersNum].currentFrame = 0;
-						trooper[troopersNum].maxFrame = TROOPER_AIMING_MAXFRAME; //기본 TERRET_AIMING_MAXFRAME의 최대 frame
-						trooper[troopersNum].animDelay = 100; //일단 0.1초
-						trooper[troopersNum].lastAnimTime = timeGetTime();
+				
 						troopersNum++;
 					}
 					else if (PlatformInfo / 10 == 8) { //turret 초기화
@@ -715,81 +711,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		///적 이미지 로드
 		//1. 터렛 
 
-		for (int i = 0; i < 30; i++) { //일단 최대 30프레임 짜리 
-
-			if (i < TERRET_AIMING_MAXFRAME) {
-				//Body
-				wsprintf(filepath, L"Resource\\enemy\\turret\\ENE_TurretBody\\Aiming\\Spr_ENE_TurretBody_Aiming (%d).png", i + 1); //\Resource\enemy\turret\ENE_TurretBody\Aiming\Spr_ENE_TurretBody_Aiming (1).png"
-				if (FAILED(Global_TurretBody_AimingSprites[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
-					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
-				}
-				////Gun
-				//wsprintf(filepath, L"Resource\\enemy\\turret\\ENE_TurretGun\\Aiming\\Spr_ENE_TurretGun_Aiming (%d).png", i + 1); //\Resource\enemy\turret\ENE_TurretGun\Aiming\Spr_ENE_TurretGun_Aiming (1).png"
-				//if (FAILED(originalTurretGun_AimingSprites[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
-				//	MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
-				//}
-
-			
-				
-			}
-			if (i < TERRET_ALERT_MAXFRAME) {
-				wsprintf(filepath, L"Resource\\enemy\\turret\\ENE_TurretBody\\Alert\\Spr_ENE_TurretBody_Alert (lp) (%d).png", i + 1); //Resource\enemy\turret\ENE_TurretBody\Alert\Spr_ENE_TurretBody_Alert (lp) (1).png"
-				if (FAILED(Global_TurretBody_AlertSprites[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
-					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
-				}
-				////Gun
-				//wsprintf(filepath, L"Resource\\enemy\\turret\\ENE_TurretGun\\Alert\\Spr_ENE_TurretGun_Alert (lp) (%d).png", i + 1); //Resource\enemy\turret\ENE_TurretGun\Alert\Spr_ENE_TurretGun_Alert (lp) (1).png"
-				//if (FAILED(originalTurretGun_AlertSprites[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
-				//	MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
-				//}
-			}
-			if (i < TERRET_COOLDOWN_MAXFRAME) {
-				//Body
-				wsprintf(filepath, L"Resource\\enemy\\turret\\ENE_TurretBody\\Cooldown\\Spr_ENE_TurretBody_Cooldown (%d).png", i + 1); //Resource\enemy\turret\ENE_TurretBody\Cooldown\Spr_ENE_TurretBody_Cooldown (1).png"
-				if (FAILED(Global_TurretBody_CoolDownSprites[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
-					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
-				}
-				////Gun
-				//wsprintf(filepath, L"Resource\\enemy\\turret\\ENE_TurretGun\\Cooldown\\Spr_ENE_TurretGun_Cooldown (%d).png", i + 1); //Resource\enemy\turret\ENE_TurretGun\Cooldown\Spr_ENE_TurretGun_Cooldown (1).png"
-				//if (FAILED(originalTurretGun_CoolDownSprites[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
-				//	MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
-				//}
-			}
-			if (i < TERRET_SHOOTING_MAXFRAME) {
-				//Body
-				wsprintf(filepath, L"Resource\\enemy\\turret\\ENE_TurretBody\\Shooting\\Spr_ENE_TurretBody_Shooting (%d).png", i + 1); //Resource\enemy\turret\ENE_TurretBody\Shooting\Spr_ENE_TurretBody_Shooting (1).png"
-				if (FAILED(Global_TurretBody_ShootingSprites[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
-					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
-				}
-				////Gun
-				//wsprintf(filepath, L"Resource\\enemy\\turret\\ENE_TurretGun\\Shooting\\Spr_ENE_TurretGun_Shooting (%d).png", i + 1); //Resource\enemy\turret\ENE_TurretGun\Shooting\Spr_ENE_TurretGun_Shooting (1).png"
-				//if (FAILED(originalTurretGun_ShootingSprites[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
-				//	MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
-				//}
-			}
-			if (i < TERRET_DEAD_MAXFRAME) {
-				//Body
-				wsprintf(filepath, L"Resource\\enemy\\turret\\ENE_TurretBody\\Dead\\Spr_ENE_TurretBody_Dead (%d).png", i + 1); //Resource\enemy\turret\ENE_TurretBody\Dead\Spr_ENE_TurretBody_Dead (1).png"
-				if (FAILED(Global_TurretBody_DeadSprites[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
-					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
-				}
-				//Gun //없음
-			}
-
-
-
-		}
+		
 		//2. 트루퍼
 		for (int i = 0; i < 30; i++) {
 			if (i < TROOPER_SHOOTING_MAXFRAME) {
 				//Gun 오른
 				wsprintf(filepath, L"Resource\\enemy\\trooper\\Arm\\Shooting\\right\\Spr_ENE_TrooperArm_Shooting (%d).png", i + 1); //Resource\enemy\trooper\Arm\Shooting\right\Spr_ENE_TrooperArm_Shooting (1).png"
-				if (FAILED(Global_TrooperBody_ShootingSprites_Right[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
+				if (FAILED(Global_TrooperGun_ShootingSprites_Right[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
 					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
 				}
 				//Gun 왼
 				wsprintf(filepath, L"Resource\\enemy\\trooper\\Arm\\Shooting\\left\\Spr_ENE_TrooperArm_Shooting (%d).png", i + 1); //Resource\enemy\trooper\Arm\Shooting\left\Spr_ENE_TrooperArm_Shooting (1).png"
-				if (FAILED(Global_TrooperBody_ShootingSprites_Left[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
+				if (FAILED(Global_TrooperGun_ShootingSprites_Left[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
 					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
 				}
 			}
@@ -815,7 +748,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
 				}
 			}
-			if (i < TROOPER_READY2SHOOT_MAXFRAME) {
+			if (i < TROOPER_READY2SHOOT_MAXFRAME) {//\Resource\enemy\trooper\Arm\Ready2shoot\right\Spr_ENE_TrooperArm_Ready2Shoot (1).png"
 				//Gun 오른
 				wsprintf(filepath, L"Resource\\enemy\\trooper\\Arm\\Ready2shoot\\right\\Spr_ENE_TrooperArm_Ready2Shoot (%d).png", i + 1); //Resource\enemy\trooper\Arm\Ready2shoot\right\Spr_ENE_TrooperArm_Ready2Shoot (1).png"
 				if (FAILED(Global_TrooperGun_Ready2shootSprites_Right[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
@@ -844,6 +777,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			}
 		
 		}
+
+
 
 		break;
 	}
@@ -971,7 +906,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					POINT curP = { curX,curY };
 					// trooper
 					for (int i = 0; i < troopersNum; i++) {
-						if (!trooper[i].alive) continue;
+						// [수정] alive가 false거나, 이미 죽는 애니메이션 중(ENEMY_DEAD)이면 무시
+						if (!trooper[i].alive || trooper[i].state == ENEMY_DEAD) continue;
+
 						RECT enemyRect;
 						SetRect(&enemyRect, trooper[i].x, trooper[i].y, trooper[i].x + TROOPERSIZE, trooper[i].y + TROOPERSIZE);
 						// 경로에 적이 있으면
@@ -982,9 +919,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 							mc.oldX = mc.x, mc.oldY = mc.y;
 
 							// 적 사망
-							trooper[i].alive = false;
-							trooper[i].activated = false;
-							trooper[i].state = ENEMY_DEAD;
+							//trooper[i].alive = false; // 죽는 애니메이션 후 에 비활성화 할것임
+							//trooper[i].activated = false;
+							SetTrooperState(trooper[i], ENEMY_DEAD);//trooper[i].state = ENEMY_DEAD;
 							attackEnemy = true;
 							break;
 						}
@@ -1200,49 +1137,51 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				if (!trooper[i].alive) continue;
 
 				// trooper
-#define ENEMY_ISWAITING 0
-#define ENEMY_ISAIMING 1
-#define ENEMY_READYTOSHOOT 2
-#define ENEMY_ISSHOOTING 3
-#define ENEMY_COOLDOWN 4
-#define ENEMY_DEAD 5
 				hBrush = CreateSolidBrush(RGB(100, 100, 100));
 				for (int i = 0; i < troopersNum; i++) {
 					if (!trooper[i].alive) continue;
-					int frame = trooper[i].currentFrame;
+					int frame_body = trooper[i].currentFrame_body;
+					int frame_gun = trooper[i].currentFrame_gun;
 
 					//트루퍼 그릴 위치
 					int posx = (int)(trooper[i].x - cam.x);
 					int posy = (int)(trooper[i].y - cam.y);
 
-					if (trooper[i].facingDirection == FACING_RIGHT) {
+					if (trooper[i].facingDirection == FACING_RIGHT) { //그릴때는 바디 먼저 그 위에 총이다.
 						switch (trooper[i].state) {
 						case ENEMY_ISAIMING: {
+							//body //dead 빼고 다 Aiming이다.
+							Global_TrooperBody_AimingSprites_Right[frame_body].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
 							//gun
-							Global_TrooperGun_AimingSprites_Right[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE );
-							//body
-							Global_TrooperBody_AimingSprites_Right[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+							Global_TrooperGun_AimingSprites_Right[frame_gun].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE );
 							break;
 						}
 						case ENEMY_READYTOSHOOT: {
+							//body //dead 빼고 다 Aiming이다.
+							Global_TrooperBody_AimingSprites_Right[frame_body].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
 							//gun
-							Global_TrooperGun_Ready2shootSprites_Right[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
-							//body
-							Global_TrooperBody_Ready2shootSprites_Right[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+							Global_TrooperGun_Ready2shootSprites_Right[frame_gun].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
 							break;
 						}
 						case ENEMY_ISSHOOTING: {
+							//body //dead 빼고 다 Aiming이다.
+							Global_TrooperBody_AimingSprites_Right[frame_body].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
 							//gun
-							Global_TrooperGun_ShootingSprites_Right[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
-							//body
-							Global_TrooperBody_Ready2shootSprites_Right[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+							Global_TrooperGun_ShootingSprites_Right[frame_gun].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
 							break;
 						}
 						case ENEMY_DEAD: {
 							//gun
 							
 							//body
-							Global_TrooperBody_DeadSprites_Right[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+							Global_TrooperBody_DeadSprites_Right[frame_body].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+							break;
+						}
+						case ENEMY_ISWAITING: { //1프레임 서있기
+							//body //dead 빼고 다 Aiming이다.
+							Global_TrooperBody_AimingSprites_Right[frame_body].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+							//gun
+							Global_TrooperGun_AimingSprites_Right[frame_gun].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
 							break;
 						}
 						default: {
@@ -1254,41 +1193,50 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					} //오른쪽 끝
 					else { //왼쪽
 
-							switch (trooper[i].state) {
-							case ENEMY_ISAIMING: {
-								//gun
-								Global_TrooperGun_AimingSprites_Left[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
-								//body
-								Global_TrooperBody_AimingSprites_Left[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
-								break;
-							}
-							case ENEMY_READYTOSHOOT: {
-								//gun
-								Global_TrooperGun_Ready2shootSprites_Left[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
-								//body
-								Global_TrooperBody_Ready2shootSprites_Left[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
-								break;
-							}
-							case ENEMY_ISSHOOTING: {
-								//gun
-								Global_TrooperGun_ShootingSprites_Left[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
-								//body
-								Global_TrooperBody_Ready2shootSprites_Left[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
-								break;
-							}
-							case ENEMY_DEAD: {
-								//gun
+						switch (trooper[i].state) {
+						case ENEMY_ISAIMING: {
+							//body //dead 빼고 다 Aiming이다.
+							Global_TrooperBody_AimingSprites_Left[frame_body].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+							//gun
+							Global_TrooperGun_AimingSprites_Left[frame_gun].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+							break;
+						}
+						case ENEMY_READYTOSHOOT: {
+							//body //dead 빼고 다 Aiming이다.
+							Global_TrooperBody_AimingSprites_Left[frame_body].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+							//gun
+							Global_TrooperGun_Ready2shootSprites_Left[frame_gun].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+							break;
+						}
+						case ENEMY_ISSHOOTING: {
+							//body //dead 빼고 다 Aiming이다.
+							Global_TrooperBody_AimingSprites_Left[frame_body].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+							//gun
+							Global_TrooperGun_ShootingSprites_Left[frame_gun].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+							break;
+						}
+						case ENEMY_DEAD: {
+							//gun
 
-								//body
-								Global_TrooperBody_DeadSprites_Left[frame].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
-								break;
-							}
-							default: {
-								Rectangle(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
-								break;
-							}
+							//body
+							Global_TrooperBody_DeadSprites_Left[frame_body].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+							break;
+						}
+						case ENEMY_ISWAITING: {//1프레임 서있기
+							//body //dead 빼고 다 Aiming이다.
+							Global_TrooperBody_AimingSprites_Left[frame_body].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+							//gun
+							Global_TrooperGun_AimingSprites_Left[frame_gun].Draw(mDC, posx, posy, TROOPERSIZE, TROOPERSIZE);
+							break;
+						}
+						default: {
+							Rectangle(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
+							break;
+						}
 
-							}//switch문 끝
+						}//switch문 끝
+
+						
 					} //방향 if문 끝
 
 				}//트루퍼 개수 반복문
@@ -2036,7 +1984,7 @@ void GameUpdateProc(HWND hWnd)
 			}
 			else if (trooper[i].state == ENEMY_ISSHOOTING) {
 				// state 바뀌고 첫 프레임일 때
-				if (trooper[i].currentFrame == 0) { //첫프레임 0
+				if (trooper[i].currentFrame_gun == 0) { //총의 첫프레임 0
 					// 총알 출발 위치 구하기
 					float centerX = trooper[i].x + (TROOPERSIZE / 2), centerY = trooper[i].y + (TROOPERSIZE / 2);
 
@@ -2066,13 +2014,8 @@ void GameUpdateProc(HWND hWnd)
 			// 적이 범위 안에 들어오면 활성화
 			if (Distance(mc.x, mc.y, trooper[i].x, trooper[i].y) < ENEMY_ACTIVATEDISTANCE && trooper[i].alive) {
 				trooper[i].activated = true;
-
-				trooper[i].state == ENEMY_ISAIMING;
-
 				//애니메이션 활성화 및 초기화
-				trooper[i].currentFrame = 0;
-				trooper[i].lastAnimTime = timeGetTime();
-				trooper[i].animDelay = 100;
+				SetTrooperState(trooper[i], ENEMY_ISAIMING); //trooper[i].state == ENEMY_ISAIMING;
 			}
 		}
 	}
@@ -2172,6 +2115,7 @@ void GameUpdateProc(HWND hWnd)
 					bullets[j] = bullets[j + 1];
 				}
 				i--;
+				bulletsNum--;
 				continue;
 			}
 
@@ -2181,6 +2125,8 @@ void GameUpdateProc(HWND hWnd)
 					bullets[j] = bullets[j + 1];
 				}
 				i--;
+				bulletsNum--;
+				continue; // (안전장치)
 			}
 		}
 		else if (bullets[i].type == BULLET_BIG) {
@@ -2208,6 +2154,7 @@ void GameUpdateProc(HWND hWnd)
 					bullets[j] = bullets[j + 1];
 				}
 				i--;
+				bulletsNum--;
 				continue;
 			}
 
@@ -2217,6 +2164,8 @@ void GameUpdateProc(HWND hWnd)
 					bullets[j] = bullets[j + 1];
 				}
 				i--;
+				bulletsNum--;
+				continue; // (안전장치)
 			}
 		}
 	}
@@ -2311,52 +2260,47 @@ void GameUpdateProc(HWND hWnd)
 
 			// 2. 각 트루퍼의 개별 딜레이 시간이 지났는지 체크
 			if (currentTime - trooper[i].lastAnimTime >= trooper[i].animDelay) {
-				trooper[i].currentFrame++; // 다음 프레임으로 이동
+				trooper[i].currentFrame_body++; // 다음 프레임으로 이동
+				trooper[i].currentFrame_gun++; // 다음 프레임으로 이동
 
-				// 3. 현재 상태에 따른 최대 프레임 수(maxFrame)와 animDelay 설정
-				switch (trooper[i].state) {
-				case ENEMY_ISAIMING:
-					trooper[i].maxFrame = TROOPER_AIMING_MAXFRAME;
-					trooper[i].animDelay = 100;
-					break;
-				case ENEMY_READYTOSHOOT:
-					trooper[i].maxFrame = TROOPER_READY2SHOOT_MAXFRAME;
-					trooper[i].animDelay = 100;
-					break;
-				case ENEMY_ISSHOOTING:
-					trooper[i].maxFrame = TROOPER_SHOOTING_MAXFRAME;
-					trooper[i].animDelay = 100;
-					break;
-				case ENEMY_DEAD:
-					trooper[i].maxFrame = TROOPER_DEAD_MAXFRAME;
-					trooper[i].animDelay = 100;
-					break;
-
-				}
-
-				// 4. 마지막 프레임 도달 시 로직 (상태 전이 또는 루프)
-				if (trooper[i].currentFrame >= trooper[i].maxFrame) {
+				///// 4. 마지막 프레임 도달 시 로직 (상태 전이 또는 루프)
+				///body 프레임 따로
+				if (trooper[i].currentFrame_body >= trooper[i].maxFrame_body) {
 
 					// 죽음 상태는 마지막 프레임에서 고정
 					if (trooper[i].state == ENEMY_DEAD) {
-						trooper[i].currentFrame = trooper[i].maxFrame - 1;
+						trooper[i].currentFrame_body = trooper[i].maxFrame_body - 1;
+						trooper[i].activated = false;	//죽는 애니메이션 후 비활성화
+						trooper[i].alive = false;
 					}
 					else { // aiming -> ready2shoot -> shooting
 
-						trooper[i].currentFrame = 0;
+						trooper[i].currentFrame_body = 0; // 총 프레임 초기화
 
 						if (trooper[i].state == ENEMY_ISAIMING) {
-							trooper[i].state = ENEMY_READYTOSHOOT;
+							SetTrooperState(trooper[i], ENEMY_READYTOSHOOT);//trooper[i].state = ENEMY_READYTOSHOOT;
 						}
 						else if (trooper[i].state == ENEMY_READYTOSHOOT) {
-							trooper[i].state = ENEMY_READYTOSHOOT;
+							SetTrooperState(trooper[i], ENEMY_ISSHOOTING);//trooper[i].state = ENEMY_ISSHOOTING;
 						}
 						else if (trooper[i].state == ENEMY_ISSHOOTING) {
-							trooper[i].state = ENEMY_ISAIMING;
+							SetTrooperState(trooper[i], ENEMY_ISAIMING);//trooper[i].state = ENEMY_ISAIMING;
 						}
-
 					}
 
+				}
+				///총 프레임 따로
+				if (trooper[i].currentFrame_gun >= trooper[i].maxFrame_gun) {
+
+					// 죽음 상태는 마지막 프레임에서 고정
+					if (trooper[i].state == ENEMY_DEAD) { //트루퍼는 죽는 것은 총이 없다.
+						
+					}
+					else { // aiming -> ready2shoot -> shooting
+
+						trooper[i].currentFrame_gun = 0; // 총 프레임 초기화
+
+					}
 				}
 
 				// 5. 타이머 갱신 (반드시 프레임 변경이 일어났을 때만 갱신)
@@ -2465,6 +2409,55 @@ void SetCharacterState(int newState)
 		mc.animDelay = 100;
 	}
 	}
+
+}
+
+//trooper 상태를 변경하는 함수 //상태당 애니메이션에 필요한 설정도 같이함
+void SetTrooperState(ENEMY_TROOPER& trooper ,int newState)
+{
+	// 상태일 때는 상태를 변경하지 않음
+	//if (mc.state == ISDAMAGED) return;
+
+	// 이미 해당 상태라면 변경하지 않음 (프레임이 도중에 0으로 리셋되는 것 방지)
+	if (trooper.state == newState) return;
+
+	trooper.state = newState;	//플레이어의 상태 변경
+	trooper.currentFrame_body = 0; // 새로운 애니메이션을 위해 프레임 리셋
+	trooper.currentFrame_gun = 0; // 새로운 애니메이션을 위해 프레임 리셋
+
+	trooper.lastAnimTime = timeGetTime(); // 타이머 리셋
+
+	//// 상태별 애니메이션 설정 부여 //애니메이션 프레임 간격 // 애니메이션 당 최대 프레임 개수
+	// 3. 현재 상태에 따른 최대 프레임 수(maxFrame)와 animDelay 설정
+	switch (trooper.state) {
+	case ENEMY_ISWAITING:
+		trooper.maxFrame_gun = 1;
+		trooper.maxFrame_body = 1;
+		trooper.animDelay = 100;
+		break;
+	case ENEMY_ISAIMING:
+		trooper.maxFrame_gun = TROOPER_AIMING_MAXFRAME;
+		trooper.maxFrame_body = TROOPER_AIMING_MAXFRAME;
+		trooper.animDelay = 100;
+		break;
+	case ENEMY_READYTOSHOOT:
+		trooper.maxFrame_gun = TROOPER_READY2SHOOT_MAXFRAME;
+		trooper.maxFrame_body = TROOPER_AIMING_MAXFRAME;
+		trooper.animDelay = 100;
+		break;
+	case ENEMY_ISSHOOTING:
+		trooper.maxFrame_gun = TROOPER_SHOOTING_MAXFRAME;
+		trooper.maxFrame_body = TROOPER_AIMING_MAXFRAME;
+		trooper.animDelay = 100;
+		break;
+	case ENEMY_DEAD:
+
+		trooper.maxFrame_body = TROOPER_DEAD_MAXFRAME;
+		trooper.animDelay = 100;
+		break;
+
+	}
+	
 
 }
 
