@@ -82,7 +82,7 @@ const float PI = 3.141592;
 #define MCMOVESPEED 0.75
 #define MCJUMPACC 15
 #define MCDASHACC 1
-#define MAXROPELEN 400
+#define MAXROPELEN 300
 #define MAXROPESHOOTLEN 600
 
 #define FACING_LEFT 0
@@ -137,7 +137,7 @@ const float PI = 3.141592;
 #define DAMAGED_MAXFRAME 5
 #define DEATH_MAXFRAME 24
 
-#define DASH_MAXFRAME 40
+#define DASH_MAXFRAME 20
 #define INVINCIBLE_MAXFRAME 50
 
 
@@ -1538,7 +1538,7 @@ void GameUpdateProc(HWND hWnd)
 				float centerX = turret[i].x + (TURRETSIZE / 2), centerY = turret[i].y + (TURRETSIZE / 2);
 				float shootX = centerX + (cos(turret[i].angle) * (TURRETSIZE / 2));
 				float shootY = centerY + (sin(turret[i].angle) * (TURRETSIZE / 2));
-				// 총알 발사 (프레임 당 1발씩 총 18발)
+				// 총알 발사 (프레임 당 1발씩)
 				bullets[bulletsNum].x = shootX;
 				bullets[bulletsNum].y = shootY;
 				bullets[bulletsNum].angle = turret[i].angle + (0.01 * random(gen));
@@ -1651,6 +1651,7 @@ void GameUpdateProc(HWND hWnd)
 	// ==================================================
 	if (mc.hp <= 0 || mc.y > PLATFORMMAXROW * PLATFORMSIZE) {
 		if (mc.state != ISDEATH) {
+			mc.hp = 0;
 			mc.state = ISSTANDING;
 			SetCharacterState(ISDEATH);
 		}
