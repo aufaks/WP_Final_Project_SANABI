@@ -1397,8 +1397,67 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			// ==================================================
 			// 주인공 조준선 그리기
 			// ==================================================
+			if (mc.state != ISSWINGING && mc.state != ISDEATH) {
+				float centerX = mc.x + (MCHORIZONALSIZE / 2), centerY = mc.y + (MCVERTICALSIZE / 2);
+				float dx = (mx + cam.x) - centerX, dy = (my + cam.y) - centerY;
+				float angle = atan2(dy, dx);
+				float curX = centerX, curY = centerY;
+				bool attackEnemy = false;
+				while (isInCamera(curX, curY)) {
+					int curRow = curY / PLATFORMSIZE, curCol = curX / PLATFORMSIZE;
+					if (platforms[curRow][curCol].isPlatform) {
+						break;
+					}
+					// 적 확인
+					POINT curP = { curX,curY };
+					// trooper
+					for (int i = 0; i < troopersNum; i++) {
+						if (!trooper[i].alive) continue;
+						RECT enemyRect;
+						SetRect(&enemyRect, trooper[i].x, trooper[i].y, trooper[i].x + TROOPERSIZE, trooper[i].y + TROOPERSIZE);
+						// 경로에 적이 있으면
+						if (PtInRect(&enemyRect, curP)) {
 
-
+							attackEnemy = true;
+							break;
+						}
+					}
+					if (attackEnemy) break;
+					// turret
+					for (int i = 0; i < turretsNum; i++) {
+						if (!turret[i].alive) continue;
+						RECT enemyRect;
+						SetRect(&enemyRect, turret[i].x, turret[i].y, turret[i].x + TURRETSIZE, turret[i].y + TURRETSIZE);
+						// 경로에 적이 있으면
+						if (PtInRect(&enemyRect, curP)) {
+							attackEnemy = true;
+							break;
+						}
+					}
+					if (attackEnemy) break;
+					// defender
+					for (int i = 0; i < defendersNum; i++) {
+						if (!defender[i].alive) continue;
+						RECT enemyRect;
+						SetRect(&enemyRect, defender[i].x, defender[i].y, defender[i].x + DEFENDERSIZE, defender[i].y + DEFENDERSIZE);
+						// 경로에 적이 있으면
+						if (PtInRect(&enemyRect, curP)) {
+							attackEnemy = true;
+							break;
+						}
+					}
+					if (attackEnemy) break;
+					curX += cos(angle) * 5;
+					curY += sin(angle) * 5;
+				}
+				SetBkMode(mDC, TRANSPARENT);
+				if (attackEnemy) hPen = CreatePen(PS_DASH, 1, RGB(255, 0, 0));
+				else hPen = CreatePen(PS_DASH, 1, RGB(0, 255, 255));
+				SelectObject(mDC, hPen);
+				MoveToEx(mDC, centerX - cam.x, centerY - cam.y, NULL);
+				LineTo(mDC, curX - cam.x, curY - cam.y);
+				DeleteObject(hPen);
+			}
 		}
 		else {
 			// ===== 타이틀 화면 =====
