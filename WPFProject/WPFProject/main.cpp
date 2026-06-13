@@ -1401,7 +1401,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				float centerX = mc.x + (MCHORIZONALSIZE / 2), centerY = mc.y + (MCVERTICALSIZE / 2);
 				float dx = (mx + cam.x) - centerX, dy = (my + cam.y) - centerY;
 				float angle = atan2(dy, dx);
-				float curX = centerX, curY = centerY;
+				float curX = centerX, curY = centerY, circleX = -1, circleY = -1;
+				int curDist = 0;
 				bool attackEnemy = false;
 				while (isInCamera(curX, curY)) {
 					int curRow = curY / PLATFORMSIZE, curCol = curX / PLATFORMSIZE;
@@ -1449,14 +1450,28 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					if (attackEnemy) break;
 					curX += cos(angle) * 5;
 					curY += sin(angle) * 5;
+					curDist += 5;
+					// 로프 발사 최대 거리 지점 표시
+					if (curDist == MAXROPESHOOTLEN) {
+						circleX = curX, circleY = curY;
+					}
 				}
 				SetBkMode(mDC, TRANSPARENT);
-				if (attackEnemy) hPen = CreatePen(PS_DASH, 1, RGB(255, 0, 0));
-				else hPen = CreatePen(PS_DASH, 1, RGB(0, 255, 255));
+				if (attackEnemy) {
+					hPen = CreatePen(PS_DASH, 1, RGB(255, 0, 0));
+					hBrush = CreateSolidBrush(RGB(255, 0, 0));
+				}
+				else {
+					hPen = CreatePen(PS_DASH, 1, RGB(0, 255, 255));
+					hBrush = CreateSolidBrush(RGB(0, 255, 255));
+				}
 				SelectObject(mDC, hPen);
+				SelectObject(mDC, hBrush);
 				MoveToEx(mDC, centerX - cam.x, centerY - cam.y, NULL);
 				LineTo(mDC, curX - cam.x, curY - cam.y);
+				if (circleX != -1) Ellipse(mDC, circleX - 5 - cam.x, circleY - 5 - cam.y, circleX + 5 - cam.x, circleY + 5 - cam.y);
 				DeleteObject(hPen);
+				DeleteObject(hBrush);
 			}
 		}
 		else {
