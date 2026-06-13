@@ -112,6 +112,7 @@ const float PI = 3.141592;
 #define ONWALL 10
 #define ISWALLCLIMBING_UP 11
 #define ISWALLCLIMBING_DOWN 12
+#define ISDEATH 13
 
 //상태에 따른 애니메이션 최대 프레임 개수- 더 추가예정, 그런데 상태에 따른 애니메이션 이미지 종류보다 현재 mc.state의 상태가 부족함.(fall_start, wall_climbUP/Down, Death, holding 등). 
 #define STARTRUN_MAXFRAME 2
@@ -653,7 +654,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		break;
 	case WM_LBUTTONDOWN:			// 좌클릭
-		if (mc.state == ISDAMAGED) break;
+		if (mc.state == ISDAMAGED || mc.state == ISDEATH) break;
 		mx = LOWORD(lParam), my = HIWORD(lParam);
 		{
 			float mouseX = mx + cam.x, mouseY = my + cam.y;
@@ -745,7 +746,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		break;
 	case WM_LBUTTONUP:
-		if (mc.state == ISDAMAGED) break;
+		if (mc.state == ISDAMAGED || mc.state == ISDEATH) break;
 		if (mc.state == ISSWINGING) {
 			PlaySFX(L"sfx_return");
 			if ((mc.oldY - mc.y) > 10) SetCharacterState(ISSWINGJUMPING);//mc.state = ISSWINGJUMPING;
@@ -1102,7 +1103,7 @@ void GameUpdateProc(HWND hWnd)
 	mc.accX = 0, mc.accY = GRAVITY;
 
 	// ISDAMAGED 일 때 이동 불가
-	if (mc.state != ISDAMAGED){
+	if (mc.state != ISDAMAGED || mc.state == ISDEATH){
 
 		if (mc.state != ONWALL) {
 			// 왼쪽 이동
@@ -1542,9 +1543,9 @@ void GameUpdateProc(HWND hWnd)
 	// ==================================================
 	// 주인공의 hp가 0이 되면 - 사망
 	// ==================================================
-	if (mc.hp <= 0 || topRow > PLATFORMMAXROW) {
+	if (mc.hp <= 0 || mc.y > PLATFORMMAXROW * PLATFORMSIZE) {
 		gameStart = false;
-		// 사망 애니메이션
+		SetCharacterState(ISDEATH);
 	}
 
 	// ==================================================
