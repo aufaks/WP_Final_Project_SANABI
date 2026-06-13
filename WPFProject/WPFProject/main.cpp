@@ -78,14 +78,27 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 	return Message.wParam;
 }
 
+struct BUTTON_STARTGAME {
+	bool selected;
+	RECT rect;
+};
+
+struct BUTTON_QUITGAME {
+	bool selected;
+	RECT rect;
+};
+
+BUTTON_STARTGAME startButton;
+BUTTON_QUITGAME quitButton;
+
 const float PI = 3.141592;
 
 #define GRAVITY 0.8
 #define MCWALLCIMBSPEED 4
-#define MCMOVESPEED 0.9
-#define MCJUMPACC 20
-#define MCDASHACC 2
-#define MAXROPELEN 400
+#define MCMOVESPEED 0.75
+#define MCJUMPACC 15
+#define MCDASHACC 1
+#define MAXROPELEN 300
 #define MAXROPESHOOTLEN 600
 
 #define FACING_LEFT 0
@@ -140,7 +153,7 @@ const float PI = 3.141592;
 #define DAMAGED_MAXFRAME 5
 #define DEATH_MAXFRAME 24
 
-#define DASH_MAXFRAME 40
+#define DASH_MAXFRAME 20
 #define INVINCIBLE_MAXFRAME 50
 
 
@@ -391,6 +404,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		cam.x = 0, cam.y = PLATFORMMAXROW * PLATFORMSIZE - cam.sizeY + 50;
 		HowManyRow = (cam.sizeY / PLATFORMSIZE) + 2, HowManyCol = (cam.sizeX / PLATFORMSIZE) + 2;
 
+		startButton.selected = false;
+		quitButton.selected = false;
+
+		SetRect(&startButton.rect, rt.right - 300, rt.bottom - 400, rt.right - 100, rt.bottom - 350);
+		SetRect(&quitButton.rect, rt.right - 300, rt.bottom - 300, rt.right - 100, rt.bottom - 250);
+
 		// 맵 로딩
 		{
 			ifstream in{ "Platform_Info.txt" };
@@ -421,7 +440,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						defender[defendersNum].x = x;
 						defender[defendersNum].y = y - PLATFORMSIZE;
 						defender[defendersNum].activated = false;
-						defender[defendersNum].facingDirection = PlatformInfo % 10;
+						if(PlatformInfo % 10 == 2) defender[defendersNum].facingDirection = FACING_LEFT;
+						else defender[defendersNum].facingDirection = FACING_RIGHT;
 						defender[defendersNum].state = ENEMY_ISWAITING;
 						defender[defendersNum].alive = true;
 						defendersNum++;
@@ -652,6 +672,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		//착지소리
 		mciSendString(L"open \"Resource\\Sfx\\SNB\\SFX_Land_SNB_Concrete 1.wav\" type waveaudio alias sfx_land", NULL, 0, NULL); //Resource\Sfx\SNB\SFX_Land_SNB_Concrete 1.wav"
 
+
 		///적 이미지 로드
 		//1. 터렛 
 		//원본 애니메이션 프레임 로드(임시 배열) //회전시킬 것들
@@ -725,14 +746,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		}
 
-
-
-
-
-
-		//
-
-		gameStart = true;
 		break;
 	}
 	case WM_SIZE:
@@ -741,6 +754,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		HowManyRow = cam.sizeY / PLATFORMSIZE + 2, HowManyCol = cam.sizeX / PLATFORMSIZE + 2;
 		break;
 	case WM_KEYDOWN:
+		if (!gameStart) break;
 		// 점프
 		if (wParam == VK_SPACE && !keys[VK_SPACE] && (mc.isGrounded || mc.state == ONWALL)) {
 			mc.canjump = true;
@@ -755,6 +769,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			else mc.dashDirection = mc.facingDirection;
 		}
 		keys[wParam] = true;
+		if (mc.state == ISDAMAGED || mc.state == ISDEATH) break;
 		// 주인공 상태 - 달리기 시작
 		if ((wParam == 'A' || wParam == 'D') && mc.state != ISSWINGING && mc.isGrounded) {
 			if (mc.state != ISRUNNING && mc.state != ISSTARTINGRUN) { // 이미 달리고 있거나(ISRUNNING), 출발하는 중(ISSTARTINGRUN)이 아닐 때만 상태를 바꾸도록
@@ -765,7 +780,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		break;
 	case WM_KEYUP:
+		if (!gameStart) break;
 		keys[wParam] = false;
+		if (mc.state == ISDAMAGED || mc.state == ISDEATH) break;
 		// 주인공 상태 - 달리기 멈추기
 		if (wParam == 'A' && mc.facingDirection == FACING_LEFT && mc.isGrounded) {
 			if (mc.state == ISRUNNING || mc.state == ISSTARTINGRUN) { //ISSTARTINGRUN 상태일 때 또는 ISRUNNING 상태일 때도 키를 떼어도 멈출 수 있도록
@@ -784,168 +801,184 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		// ==================================================
 		// 좌클릭
 		// ==================================================
-		if (mc.state == ISDAMAGED || mc.state == ISDEATH) break;
-		mx = LOWORD(lParam), my = HIWORD(lParam);
-		{
-			float mouseX = mx + cam.x, mouseY = my + cam.y;
-			float centerX = mc.x + (MCHORIZONALSIZE / 2), centerY = mc.y + (MCVERTICALSIZE / 2);
+		if (gameStart) {
+			if (mc.state == ISDAMAGED || mc.state == ISDEATH) break;
+			mx = LOWORD(lParam), my = HIWORD(lParam);
+			{
+				float mouseX = mx + cam.x, mouseY = my + cam.y;
+				float centerX = mc.x + (MCHORIZONALSIZE / 2), centerY = mc.y + (MCVERTICALSIZE / 2);
 
-			// 기울기 (방향) 구하기 위한 요소
-			dx = mouseX - centerX, dy = mouseY - centerY;
-			float anchDist = sqrt(dx * dx + dy * dy);
-			float dirX = dx / anchDist, dirY = dy / anchDist;
-			float curDist = 0;
-			// 광선 발사 플랫폼 체크
-			float step = 5;
-			int oldRow = centerY / PLATFORMSIZE, oldCol = centerX / PLATFORMSIZE;
-			while (curDist < MAXROPESHOOTLEN) {
-				float curX = centerX + (dirX * curDist), curY = centerY + (dirY * curDist);
-				int curRow = curY / PLATFORMSIZE, curCol = curX / PLATFORMSIZE;
+				// 기울기 (방향) 구하기 위한 요소
+				dx = mouseX - centerX, dy = mouseY - centerY;
+				float anchDist = sqrt(dx * dx + dy * dy);
+				float dirX = dx / anchDist, dirY = dy / anchDist;
+				float curDist = 0;
+				// 광선 발사 플랫폼 체크
+				float step = 5;
+				int oldRow = centerY / PLATFORMSIZE, oldCol = centerX / PLATFORMSIZE;
+				while (curDist < MAXROPESHOOTLEN) {
+					float curX = centerX + (dirX * curDist), curY = centerY + (dirY * curDist);
+					int curRow = curY / PLATFORMSIZE, curCol = curX / PLATFORMSIZE;
 
-				// 배열 밖으로 나가면 종료
-				if (curRow < 0 || curRow >= PLATFORMMAXROW || curCol < 0 || curCol >= PLATFORMMAXCOL) {
-					break;
-				}
-
-				// 플랫폼 확인
-				if (platforms[curRow][curCol].isPlatform) {
-					if (curRow > oldRow) {
-						if (platforms[curRow][curCol].type[WALL_TOP] == WALL_CANHOOK) {
-							anch.x = curX, anch.y = curY;
-							float ropeDx = curX - centerX, ropeDy = curY - centerY;
-							anch.length = sqrt(ropeDx * ropeDx + ropeDy * ropeDy);
-							if (anch.length > MAXROPELEN) anch.length = MAXROPELEN;
-							SetCharacterState(ISSWINGING);//mc.state = ISSWINGING;
-						}
-						if (platforms[curRow][curCol].type[WALL_BOTTOM] != WALL_CONNECT) break;
-					}
-					if (curRow < oldRow) {
-						if (platforms[curRow][curCol].type[WALL_BOTTOM] == WALL_CANHOOK) {
-							anch.x = curX, anch.y = curY;
-							float ropeDx = curX - centerX, ropeDy = curY - centerY;
-							anch.length = sqrt(ropeDx * ropeDx + ropeDy * ropeDy);
-							if (anch.length > MAXROPELEN) anch.length = MAXROPELEN;
-							SetCharacterState(ISSWINGING);//mc.state = ISSWINGING;
-						}
-						if (platforms[curRow][curCol].type[WALL_BOTTOM] != WALL_CONNECT) break;
-					}
-					if (curCol < oldCol) {
-						if (platforms[curRow][curCol].type[WALL_RIGHT] == WALL_CANHOOK) {
-							anch.x = curX, anch.y = curY;
-							float ropeDx = curX - centerX, ropeDy = curY - centerY;
-							anch.length = sqrt(ropeDx * ropeDx + ropeDy * ropeDy);
-							if (anch.length > MAXROPELEN) anch.length = MAXROPELEN;
-							SetCharacterState(ISSWINGING);//mc.state = ISSWINGING;
-						}
-						if (platforms[curRow][curCol].type[WALL_BOTTOM] != WALL_CONNECT) break;
-					}
-					if (curCol > oldCol) {
-						if (platforms[curRow][curCol].type[WALL_LEFT] == WALL_CANHOOK) {
-							anch.x = curX, anch.y = curY;
-							float ropeDx = curX - centerX, ropeDy = curY - centerY;
-							anch.length = sqrt(ropeDx * ropeDx + ropeDy * ropeDy);
-							if (anch.length > MAXROPELEN) anch.length = MAXROPELEN;
-							SetCharacterState(ISSWINGING);//mc.state = ISSWINGING;
-						}
-						if (platforms[curRow][curCol].type[WALL_BOTTOM] != WALL_CONNECT) break;
-					}
-				}
-
-				// 적 확인 (공격)
-				bool attackEnemy = false;
-				POINT curP = { curX,curY };
-				// trooper
-				for (int i = 0; i < troopersNum; i++) {
-					if (!trooper[i].alive) continue;
-					RECT enemyRect;
-					SetRect(&enemyRect, trooper[i].x, trooper[i].y, trooper[i].x + TROOPERSIZE, trooper[i].y + TROOPERSIZE);
-					// 경로에 적이 있으면
-					if (PtInRect(&enemyRect, curP)) {
-						// 적 위치로 이동
-						mc.x = trooper[i].x + (TROOPERSIZE / 2);
-						mc.y = trooper[i].y;
-						mc.oldX = mc.x, mc.oldY = mc.y;
-
-						// 적 사망
-						trooper[i].alive = false;
-						trooper[i].activated = false;
-						trooper[i].state = ENEMY_DEAD;
-						attackEnemy = true;
+					// 배열 밖으로 나가면 종료
+					if (curRow < 0 || curRow >= PLATFORMMAXROW || curCol < 0 || curCol >= PLATFORMMAXCOL) {
 						break;
 					}
-				}
-				if (attackEnemy) break;
-				// turret
-				for (int i = 0; i < turretsNum; i++) {
-					if (!turret[i].alive) continue;
-					RECT enemyRect;
-					SetRect(&enemyRect, turret[i].x, turret[i].y, turret[i].x + TURRETSIZE, turret[i].y + TURRETSIZE);
-					// 경로에 적이 있으면
-					if (PtInRect(&enemyRect, curP)) {
-						// 적 위치로 이동
-						mc.x = turret[i].x + (TURRETSIZE / 2);
-						mc.y = turret[i].y;
-						mc.oldX = mc.x, mc.oldY = mc.y;
 
-						// 적 사망
-						turret[i].alive = false;
-						turret[i].activated = false;
-						turret[i].state = ENEMY_DEAD;
-						attackEnemy = true;
-						break;
+					// 플랫폼 확인
+					if (platforms[curRow][curCol].isPlatform) {
+						if (curRow > oldRow) {
+							if (platforms[curRow][curCol].type[WALL_TOP] == WALL_CANHOOK) {
+								anch.x = curX, anch.y = curY;
+								float ropeDx = curX - centerX, ropeDy = curY - centerY;
+								anch.length = sqrt(ropeDx * ropeDx + ropeDy * ropeDy);
+								if (anch.length > MAXROPELEN) anch.length = MAXROPELEN;
+								SetCharacterState(ISSWINGING);//mc.state = ISSWINGING;
+							}
+							if (platforms[curRow][curCol].type[WALL_BOTTOM] != WALL_CONNECT) break;
+						}
+						if (curRow < oldRow) {
+							if (platforms[curRow][curCol].type[WALL_BOTTOM] == WALL_CANHOOK) {
+								anch.x = curX, anch.y = curY;
+								float ropeDx = curX - centerX, ropeDy = curY - centerY;
+								anch.length = sqrt(ropeDx * ropeDx + ropeDy * ropeDy);
+								if (anch.length > MAXROPELEN) anch.length = MAXROPELEN;
+								SetCharacterState(ISSWINGING);//mc.state = ISSWINGING;
+							}
+							if (platforms[curRow][curCol].type[WALL_BOTTOM] != WALL_CONNECT) break;
+						}
+						if (curCol < oldCol) {
+							if (platforms[curRow][curCol].type[WALL_RIGHT] == WALL_CANHOOK) {
+								anch.x = curX, anch.y = curY;
+								float ropeDx = curX - centerX, ropeDy = curY - centerY;
+								anch.length = sqrt(ropeDx * ropeDx + ropeDy * ropeDy);
+								if (anch.length > MAXROPELEN) anch.length = MAXROPELEN;
+								SetCharacterState(ISSWINGING);//mc.state = ISSWINGING;
+							}
+							if (platforms[curRow][curCol].type[WALL_BOTTOM] != WALL_CONNECT) break;
+						}
+						if (curCol > oldCol) {
+							if (platforms[curRow][curCol].type[WALL_LEFT] == WALL_CANHOOK) {
+								anch.x = curX, anch.y = curY;
+								float ropeDx = curX - centerX, ropeDy = curY - centerY;
+								anch.length = sqrt(ropeDx * ropeDx + ropeDy * ropeDy);
+								if (anch.length > MAXROPELEN) anch.length = MAXROPELEN;
+								SetCharacterState(ISSWINGING);//mc.state = ISSWINGING;
+							}
+							if (platforms[curRow][curCol].type[WALL_BOTTOM] != WALL_CONNECT) break;
+						}
 					}
-				}
-				if (attackEnemy) break;
-				// defender
-				for (int i = 0; i < defendersNum; i++) {
-					if (!defender[i].alive) continue;
-					RECT enemyRect;
-					SetRect(&enemyRect, defender[i].x, defender[i].y, defender[i].x + DEFENDERSIZE, defender[i].y + DEFENDERSIZE);
-					// 경로에 적이 있으면
-					if (PtInRect(&enemyRect, curP)) {
-						// 적 위치로 이동
-						mc.x = defender[i].x + (DEFENDERSIZE / 2);
-						mc.y = defender[i].y;
-						mc.oldX = mc.x, mc.oldY = mc.y;
 
-						// 적 사망
-						defender[i].alive = false;
-						defender[i].activated = false;
-						defender[i].state = ENEMY_DEAD;
-						attackEnemy = true;
-						break;
+					// 적 확인 (공격)
+					bool attackEnemy = false;
+					POINT curP = { curX,curY };
+					// trooper
+					for (int i = 0; i < troopersNum; i++) {
+						if (!trooper[i].alive) continue;
+						RECT enemyRect;
+						SetRect(&enemyRect, trooper[i].x, trooper[i].y, trooper[i].x + TROOPERSIZE, trooper[i].y + TROOPERSIZE);
+						// 경로에 적이 있으면
+						if (PtInRect(&enemyRect, curP)) {
+							// 적 위치로 이동
+							mc.x = trooper[i].x + (TROOPERSIZE / 2);
+							mc.y = trooper[i].y;
+							mc.oldX = mc.x, mc.oldY = mc.y;
+
+							// 적 사망
+							trooper[i].alive = false;
+							trooper[i].activated = false;
+							trooper[i].state = ENEMY_DEAD;
+							attackEnemy = true;
+							break;
+						}
 					}
-				}
-				if (attackEnemy) break;
+					if (attackEnemy) break;
+					// turret
+					for (int i = 0; i < turretsNum; i++) {
+						if (!turret[i].alive) continue;
+						RECT enemyRect;
+						SetRect(&enemyRect, turret[i].x, turret[i].y, turret[i].x + TURRETSIZE, turret[i].y + TURRETSIZE);
+						// 경로에 적이 있으면
+						if (PtInRect(&enemyRect, curP)) {
+							// 적 위치로 이동
+							mc.x = turret[i].x + (TURRETSIZE / 2);
+							mc.y = turret[i].y;
+							mc.oldX = mc.x, mc.oldY = mc.y;
 
-				curDist += step;
-				oldRow = curRow;
-				oldCol = curCol;
+							// 적 사망
+							turret[i].alive = false;
+							turret[i].activated = false;
+							turret[i].state = ENEMY_DEAD;
+							attackEnemy = true;
+							break;
+						}
+					}
+					if (attackEnemy) break;
+					// defender
+					for (int i = 0; i < defendersNum; i++) {
+						if (!defender[i].alive) continue;
+						RECT enemyRect;
+						SetRect(&enemyRect, defender[i].x, defender[i].y, defender[i].x + DEFENDERSIZE, defender[i].y + DEFENDERSIZE);
+						// 경로에 적이 있으면
+						if (PtInRect(&enemyRect, curP)) {
+							// 방패에 막히면
+							if (defender[i].facingDirection == FACING_LEFT && (curCol > oldCol && oldRow == curRow)
+								|| defender[i].facingDirection == FACING_RIGHT && (curCol < oldCol && oldRow == curRow)) {
+								attackEnemy = true;
+								break;
+							}
+							// 적 위치로 이동
+							mc.x = defender[i].x + (DEFENDERSIZE / 2);
+							mc.y = defender[i].y;
+							mc.oldX = mc.x, mc.oldY = mc.y;
+
+							// 적 사망
+							defender[i].alive = false;
+							defender[i].activated = false;
+							defender[i].state = ENEMY_DEAD;
+							attackEnemy = true;
+							break;
+						}
+					}
+					if (attackEnemy) break;
+
+					curDist += step;
+					oldRow = curRow;
+					oldCol = curCol;
+				}
+			}
+
+			// 위치 보정
+			if (mc.state == ISSWINGING) {
+				float centerX = mc.x + (MCHORIZONALSIZE / 2);
+				float centerY = mc.y + (MCVERTICALSIZE / 2);
+				float dx = centerX - anch.x;
+				float dy = centerY - anch.y;
+				float currentDist = sqrt(dx * dx + dy * dy);
+				if (currentDist > anch.length) {
+					float ratio = anch.length / currentDist;
+					float targetcenterX = anch.x + dx * ratio;
+					float targetcenterY = anch.y + dy * ratio;
+					mc.x = targetcenterX - (MCHORIZONALSIZE / 2);
+					mc.y = targetcenterY - (MCVERTICALSIZE / 2);
+					mc.oldX = mc.x;
+					mc.oldY = mc.y;
+				}
+				mc.dash = CANDASH;
+				PlaySFX(L"sfx_grab");
 			}
 		}
+		else {
+			mx = LOWORD(lParam), my = HIWORD(lParam);
 
-		// 위치 보정
-		if (mc.state == ISSWINGING) {
-			float centerX = mc.x + (MCHORIZONALSIZE / 2);
-			float centerY = mc.y + (MCVERTICALSIZE / 2);
-			float dx = centerX - anch.x;
-			float dy = centerY - anch.y;
-			float currentDist = sqrt(dx * dx + dy * dy);
-			if (currentDist > anch.length) {
-				float ratio = anch.length / currentDist;
-				float targetcenterX = anch.x + dx * ratio;
-				float targetcenterY = anch.y + dy * ratio;
-				mc.x = targetcenterX - (MCHORIZONALSIZE / 2);
-				mc.y = targetcenterY - (MCVERTICALSIZE / 2);
-				mc.oldX = mc.x;
-				mc.oldY = mc.y;
-			}
-			mc.dash = CANDASH;
-			PlaySFX(L"sfx_grab");
+			if (startButton.selected) gameStart = true;
+			else if (quitButton.selected) PostQuitMessage(0);
+
+			InvalidateRect(hWnd, NULL, FALSE);
 		}
-
 		break;
 	case WM_LBUTTONUP:
+		if (!gameStart) break;
 		if (mc.state == ISDAMAGED || mc.state == ISDEATH) break;
 		if (mc.state == ISSWINGING) {
 			PlaySFX(L"sfx_return");
@@ -955,7 +988,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		break;
 	case WM_MOUSEMOVE:
+		if (gameStart) break;
 		mx = LOWORD(lParam), my = HIWORD(lParam);
+		POINT mp;
+		mp.x = mx, mp.y = my;
+		if (PtInRect(&startButton.rect, mp)) startButton.selected = true;
+		else startButton.selected = false;
+		if (PtInRect(&quitButton.rect, mp)) quitButton.selected = true;
+		else quitButton.selected = false;
+		
+		InvalidateRect(hWnd, NULL, FALSE);
+
 		break;
 	case WM_PAINT:
 	{
@@ -970,90 +1013,357 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		Rectangle(mDC, rt.left, rt.top, rt.right, rt.bottom);
 		hPen = (HPEN)GetStockObject(BLACK_PEN);
 
-		// (임시) 배경 그리기
-		hPen = CreatePen(0, 0, RGB(150, 180, 255));
-		SelectObject(mDC, hPen);
-		hBrush = CreateSolidBrush(RGB(150, 180, 255));
-		SelectObject(mDC, hBrush);
-		Rectangle(mDC, rt.left, rt.top, rt.right, rt.bottom);
-		DeleteObject(hPen);
-		DeleteObject(hBrush);
+		if (gameStart) {
+			// ===== 게임 플레이 화면 =====
 
-		// ==================================================
-		// 플랫폼 그리기
-		// ==================================================
-		int camrow, camcol;
-		// 카메라 행, 열 구하기
-		camrow = cam.y / PLATFORMSIZE, camcol = cam.x / PLATFORMSIZE;
-		// 카메라 안쪽 플랫폼만 그리기
-		for (int i = camrow; i < camrow + HowManyRow; i++) {
-			for (int j = camcol; j < camcol + HowManyCol; j++) {
-				// 플랫폼이 아니면 (비어있는 공간이면) 패스
-				if (platforms[i][j].isPlatform == false) continue;
 
-				// 행, 열로 좌표 구하기
-				float x = j * PLATFORMSIZE, y = i * PLATFORMSIZE;
+			// 배경 그리기
+			hPen = CreatePen(0, 0, RGB(150, 180, 255));
+			SelectObject(mDC, hPen);
+			hBrush = CreateSolidBrush(RGB(150, 180, 255));
+			SelectObject(mDC, hBrush);
+			Rectangle(mDC, rt.left, rt.top, rt.right, rt.bottom);
+			DeleteObject(hPen);
+			DeleteObject(hBrush);
 
-				// 검은색 정사각형 땅 그리기
-				hPen = CreatePen(0, 0, RGB(10, 10, 10));
-				SelectObject(mDC, hPen);
-				hBrush = CreateSolidBrush(RGB(10, 10, 10));
-				SelectObject(mDC, hBrush);
-				Rectangle(mDC, x - cam.x, y - cam.y, x + PLATFORMSIZE - cam.x, y + PLATFORMSIZE - cam.y);
-				DeleteObject(hPen);
-				DeleteObject(hBrush);
+			// ==================================================
+			// 플랫폼 그리기
+			// ==================================================
+			int camrow, camcol;
+			// 카메라 행, 열 구하기
+			camrow = cam.y / PLATFORMSIZE, camcol = cam.x / PLATFORMSIZE;
+			// 카메라 안쪽 플랫폼만 그리기
+			for (int i = camrow; i < camrow + HowManyRow; i++) {
+				for (int j = camcol; j < camcol + HowManyCol; j++) {
+					// 플랫폼이 아니면 (비어있는 공간이면) 패스
+					if (platforms[i][j].isPlatform == false) continue;
 
-				// 플랫폼 겉 면 그리기 (우선순위 - CANHOOK이 가장 위에 보이게 마지막에 그림)
-				float x1, y1, x2, y2;
-				for (int k = 0; k < 4; k++) {
-					if (k == WALL_TOP) x1 = x, y1 = y, x2 = x + PLATFORMSIZE, y2 = y;
-					else if (k == WALL_RIGHT) x1 = x + PLATFORMSIZE, y1 = y, x2 = x + PLATFORMSIZE, y2 = y + PLATFORMSIZE;
-					else if (k == WALL_BOTTOM) x1 = x, y1 = y + PLATFORMSIZE, x2 = x + PLATFORMSIZE, y2 = y + PLATFORMSIZE;
-					else if (k == WALL_LEFT) x1 = x, y1 = y, x2 = x, y2 = y + PLATFORMSIZE;
-					if (platforms[i][j].type[k] == WALL_CANNOTHOOK) {
-						hPen = CreatePen(0, 2, RGB(0, 255, 0));
-					}
-					else if (platforms[i][j].type[k] == WALL_DAMAGE) {
-						hPen = CreatePen(0, 2, RGB(255, 0, 0));
-					}
-					else hPen = CreatePen(0, 0, RGB(10, 10, 10));
+					// 행, 열로 좌표 구하기
+					float x = j * PLATFORMSIZE, y = i * PLATFORMSIZE;
+
+					// 검은색 정사각형 땅 그리기
+					hPen = CreatePen(0, 0, RGB(10, 10, 10));
 					SelectObject(mDC, hPen);
-					// 플랫폼 면 선 긋기
-					MoveToEx(mDC, x1 - cam.x, y1 - cam.y, NULL);
-					LineTo(mDC, x2 - cam.x, y2 - cam.y);
-					// 펜 초기화
+					hBrush = CreateSolidBrush(RGB(10, 10, 10));
+					SelectObject(mDC, hBrush);
+					Rectangle(mDC, x - cam.x, y - cam.y, x + PLATFORMSIZE - cam.x, y + PLATFORMSIZE - cam.y);
 					DeleteObject(hPen);
-					SelectObject(mDC, GetStockObject(BLACK_PEN));
-				}
-				for (int k = 0; k < 4; k++) {
-					if (k == WALL_TOP) x1 = x, y1 = y, x2 = x + PLATFORMSIZE, y2 = y;
-					else if (k == WALL_RIGHT) x1 = x + PLATFORMSIZE, y1 = y, x2 = x + PLATFORMSIZE, y2 = y + PLATFORMSIZE;
-					else if (k == WALL_BOTTOM) x1 = x, y1 = y + PLATFORMSIZE, x2 = x + PLATFORMSIZE, y2 = y + PLATFORMSIZE;
-					else if (k == WALL_LEFT) x1 = x, y1 = y, x2 = x, y2 = y + PLATFORMSIZE;
-					if (platforms[i][j].type[k] == WALL_CANHOOK) {
-						hPen = CreatePen(0, 2, RGB(255, 255, 0));
+					DeleteObject(hBrush);
+
+					// 플랫폼 겉 면 그리기 (우선순위 - CANHOOK이 가장 위에 보이게 마지막에 그림)
+					float x1, y1, x2, y2;
+					for (int k = 0; k < 4; k++) {
+						if (k == WALL_TOP) x1 = x, y1 = y, x2 = x + PLATFORMSIZE, y2 = y;
+						else if (k == WALL_RIGHT) x1 = x + PLATFORMSIZE, y1 = y, x2 = x + PLATFORMSIZE, y2 = y + PLATFORMSIZE;
+						else if (k == WALL_BOTTOM) x1 = x, y1 = y + PLATFORMSIZE, x2 = x + PLATFORMSIZE, y2 = y + PLATFORMSIZE;
+						else if (k == WALL_LEFT) x1 = x, y1 = y, x2 = x, y2 = y + PLATFORMSIZE;
+						if (platforms[i][j].type[k] == WALL_CANNOTHOOK) {
+							hPen = CreatePen(0, 3, RGB(0, 255, 0));
+						}
+						else if (platforms[i][j].type[k] == WALL_DAMAGE) {
+							hPen = CreatePen(0, 3, RGB(255, 0, 0));
+						}
+						else hPen = CreatePen(0, 0, RGB(10, 10, 10));
+						SelectObject(mDC, hPen);
+						// 플랫폼 면 선 긋기
+						MoveToEx(mDC, x1 - cam.x, y1 - cam.y, NULL);
+						LineTo(mDC, x2 - cam.x, y2 - cam.y);
+						// 펜 초기화
+						DeleteObject(hPen);
+						SelectObject(mDC, GetStockObject(BLACK_PEN));
 					}
-					else hPen = CreatePen(0, 0, RGB(10, 10, 10));
-					SelectObject(mDC, hPen);
-					// 플랫폼 면 선 긋기
-					MoveToEx(mDC, x1 - cam.x, y1 - cam.y, NULL);
-					LineTo(mDC, x2 - cam.x, y2 - cam.y);
-					// 펜 초기화
-					DeleteObject(hPen);
-					SelectObject(mDC, GetStockObject(BLACK_PEN));
+					for (int k = 0; k < 4; k++) {
+						if (k == WALL_TOP) x1 = x, y1 = y, x2 = x + PLATFORMSIZE, y2 = y;
+						else if (k == WALL_RIGHT) x1 = x + PLATFORMSIZE, y1 = y, x2 = x + PLATFORMSIZE, y2 = y + PLATFORMSIZE;
+						else if (k == WALL_BOTTOM) x1 = x, y1 = y + PLATFORMSIZE, x2 = x + PLATFORMSIZE, y2 = y + PLATFORMSIZE;
+						else if (k == WALL_LEFT) x1 = x, y1 = y, x2 = x, y2 = y + PLATFORMSIZE;
+						if (platforms[i][j].type[k] == WALL_CANHOOK) {
+							hPen = CreatePen(0, 3, RGB(255, 255, 0));
+						}
+						else hPen = CreatePen(0, 0, RGB(10, 10, 10));
+						SelectObject(mDC, hPen);
+						// 플랫폼 면 선 긋기
+						MoveToEx(mDC, x1 - cam.x, y1 - cam.y, NULL);
+						LineTo(mDC, x2 - cam.x, y2 - cam.y);
+						// 펜 초기화
+						DeleteObject(hPen);
+						SelectObject(mDC, GetStockObject(BLACK_PEN));
+					}
 				}
 			}
+			// ==================================================
+			// 적 그리기 (임시 - 회색 벽돌)
+			// ==================================================
+			// trooper
+			hBrush = CreateSolidBrush(RGB(100, 100, 100));
+			SelectObject(mDC, hBrush);
+			for (int i = 0; i < troopersNum; i++) {
+				if (!trooper[i].alive) continue;
+				Rectangle(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
+			}
+			// turret
+			for (int i = 0; i < turretsNum; i++) {
+				if (!turret[i].alive) continue;
+				Rectangle(mDC, turret[i].x - cam.x, turret[i].y - cam.y, turret[i].x + TURRETSIZE - cam.x, turret[i].y + TURRETSIZE - cam.y);
+			}
+			// defender
+			for (int i = 0; i < defendersNum; i++) {
+				if (!defender[i].alive) continue;
+				Rectangle(mDC, defender[i].x - cam.x, defender[i].y - cam.y, defender[i].x + DEFENDERSIZE - cam.x, defender[i].y + DEFENDERSIZE - cam.y);
+			}
+
+			DeleteObject(hBrush);
+
+			// ==================================================
+			// 주인공 그리기
+			// ==================================================
+			//주인공 그릴 위치
+			int posx = (int)(mc.x - cam.x);
+			int posy = (int)(mc.y - cam.y);
+			//그리는 크기
+
+			//현재 프레임
+			int frame = mc.currentFrame;
+			if (mc.facingDirection == FACING_RIGHT) {
+				switch (mc.state) {
+				case ISSTANDING: {
+					mc.StandingSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					break;
+				}
+				case ISSTARTINGRUN: {
+					mc.StartRunSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					break;
+				}
+				case ISRUNNING: {
+					mc.RunningSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					//PlaySFX(L"sfx_footstep");
+					//PlaySound(L"Resource\\Sfx\\SNB\\SFX_SNB_Footstep_Concrete B.wav", NULL, SND_FILENAME | SND_ASYNC); // (SND_ASYNC: 비동기 재생 - 소리가 끝날 때까지 프로그램이 멈추지 않음) //Resource\Sfx\SNB\SFX_SNB_Footstep_Concrete B.wav"
+					break;
+				}
+				case ISSTOPPING: {
+					mc.StopRunSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					break;
+				}
+				case ISJUMPING: {
+					mc.JumpingSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					break;
+				}
+							  /*	case ISSTARTFALL: {
+									  mc.StartFallSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+									  break;
+								  }*/
+				case ISFALLING: {
+					mc.FallingSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					break;
+				}
+				case ISLANDING: {
+					mc.LandingSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					break;
+				}
+				case ISSWINGING: {
+					mc.SwingingSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					break;
+				}
+				case ISSWINGJUMPING: {
+					mc.SwingJumpingSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					break;
+				}
+				case ISDAMAGED: {
+					mc.DamagedSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					break;
+				}
+
+				case ONWALL: {
+					if (mc.climbingDirection == CLIMBING_UP) {
+						mc.ClimbUpSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					}
+					else if (mc.climbingDirection == CLIMBING_DOWN) {
+						mc.ClimbDownSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					}
+					else if (mc.climbingDirection == NO_CLIMBING) { //NO_CLIMBING
+						mc.ClimbUpSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					}
+					break;
+				}
+
+						   /*	case ISHOLDING: {
+								   mc.ExHoldingBackSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+								   break;
+							   }*/
+				case ISDEATH: {
+					mc.DeathSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					break;
+				}
+				default: {
+					hBrush = CreateSolidBrush(RGB(255, 0, 0));
+					SelectObject(mDC, hBrush);
+					Ellipse(mDC, mc.x - cam.x, mc.y - cam.y, mc.x - cam.x + MCHORIZONALSIZE, mc.y - cam.y + MCVERTICALSIZE);
+					DeleteObject(hBrush);
+					break;
+				}
+
+				}//switch문 끝
+			}
+			else {//왼쪽 방향
+				switch (mc.state) {
+				case ISSTANDING: {
+					mc.StandingSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					break;
+				}
+				case ISSTARTINGRUN: {
+					mc.StartRunSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					break;
+				}
+				case ISRUNNING: {
+					mc.RunningSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					//PlaySFX(L"sfx_footstep");
+					break;
+				}
+				case ISSTOPPING: {
+					mc.StopRunSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					break;
+				}
+				case ISJUMPING: {
+					mc.JumpingSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					break;
+				}
+							  /*	case ISSTARTFALL: {
+									  mc.StartFallSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+									  break;
+								  }*/
+				case ISFALLING: {
+					mc.FallingSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					break;
+				}
+				case ISLANDING: {
+					mc.LandingSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					break;
+				}
+				case ISSWINGING: {
+					mc.SwingingSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					break;
+				}
+				case ISSWINGJUMPING: {
+					mc.SwingJumpingSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					break;
+				}
+				case ISDAMAGED: {
+					mc.DamagedSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					break;
+				}
+				case ONWALL: {
+					if (mc.climbingDirection == CLIMBING_UP) {
+						mc.ClimbUpSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+						//PlaySFX(L"sfx_climbup1"); //느려짐
+						//PlaySFX(L"sfx_climbup2");
+					}
+					else if (mc.climbingDirection == CLIMBING_DOWN) {
+						mc.ClimbDownSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+						//PlaySFX(L"sfx_climbdown");
+					}
+					else if (mc.climbingDirection == NO_CLIMBING) { //NO_CLIMBING
+						mc.ClimbUpSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					}
+					break;
+				}
+						   /*	case ISHOLDING: {
+								   mc.ExHoldingBackSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+								   break;
+							   }*/
+				case ISDEATH: {
+					mc.DeathSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+					break;
+				}
+				default: {
+					hBrush = CreateSolidBrush(RGB(255, 0, 0));
+					SelectObject(mDC, hBrush);
+					Ellipse(mDC, mc.x - cam.x, mc.y - cam.y, mc.x - cam.x + MCHORIZONALSIZE, mc.y - cam.y + MCVERTICALSIZE);
+					DeleteObject(hBrush);
+					break;
+				}
+				}//switch문 끝
+			}//주인공 좌/우if문 끝
+
+			// 주인공 HP 바 그리기
+			hPen = (HPEN)GetStockObject(NULL_PEN);
+			SelectObject(mDC, hPen);
+			hBrush = CreateSolidBrush(RGB(0, 0, 255));
+			SelectObject(mDC, hBrush);
+			for (int i = 0; i < mc.hp; i++) {
+				float x = mc.x - 20, y = (mc.y - 20) + (5 * i);
+				Rectangle(mDC, x - cam.x, y - cam.y, x + 10 - cam.x, y + 3 - cam.y);
+			}
+			DeleteObject(hBrush);
+			SelectObject(mDC, GetStockObject(BLACK_PEN));
+
+			// 상태 확인용
+			TCHAR tchar[10];
+			wsprintf(tchar, L"%d %d", mc.state, mc.isGrounded);
+			TextOut(mDC, 10, 10, tchar, lstrlen(tchar));
+
+			// ==================================================
+			// 사슬 그리기
+			// ==================================================
+			if (mc.state == ISSWINGING) {
+				hPen = CreatePen(0, 3, RGB(80, 80, 80));
+				SelectObject(mDC, hPen);
+				MoveToEx(mDC, mc.x + (MCHORIZONALSIZE / 2) - cam.x, mc.y + (MCVERTICALSIZE / 2) - cam.y, NULL);
+				LineTo(mDC, anch.x - cam.x, anch.y - cam.y);
+				DeleteObject(hPen);
+				SelectObject(mDC, GetStockObject(BLACK_PEN));
+			}
+
+			// ==================================================
+			// 총알 그리기
+			// ==================================================
+			hPen = CreatePen(0, 0, RGB(255, 0, 0));
+			SelectObject(mDC, hPen);
+			hBrush = CreateSolidBrush(RGB(255, 255, 0));
+			SelectObject(mDC, hBrush);
+			for (int i = 0; i < bulletsNum; i++) {
+				if (bullets[i].type == BULLET_SMALL) {
+					Ellipse(mDC, bullets[i].x - BULLET_SMALL_SIZE - cam.x, bullets[i].y - BULLET_SMALL_SIZE - cam.y, bullets[i].x + BULLET_SMALL_SIZE - cam.x, bullets[i].y + BULLET_SMALL_SIZE - cam.y);
+				}
+				else if (bullets[i].type == BULLET_BIG) {
+					Ellipse(mDC, bullets[i].x - BULLET_BIG_SIZE - cam.x, bullets[i].y - BULLET_BIG_SIZE - cam.y, bullets[i].x + BULLET_BIG_SIZE - cam.x, bullets[i].y + BULLET_BIG_SIZE - cam.y);
+				}
+			}
+			DeleteObject(hPen);
+			DeleteObject(hBrush);
 		}
-		// ==================================================
-		// 적 그리기 (임시 - 회색 벽돌)
-		// ==================================================
-		// trooper
-		hBrush = CreateSolidBrush(RGB(100, 100, 100));
-		SelectObject(mDC, hBrush);
-		for (int i = 0; i < troopersNum; i++) {
-			if (!trooper[i].alive) continue;
-			Rectangle(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
+		else {
+			// ===== 타이틀 화면 =====
+			// 타이틀 배경
+
+			// 게임 시작 버튼
+			if (startButton.selected) {
+				hPen = CreatePen(0, 3, RGB(0, 0, 255));
+				hBrush = CreateSolidBrush(RGB(0, 0, 255));
+			}
+			else {
+				hPen = CreatePen(0, 3, RGB(0, 0, 50));
+				hBrush = CreateSolidBrush(RGB(0, 0, 50));
+			}
+			SelectObject(mDC, hPen);
+			SelectObject(mDC, hBrush);
+			Rectangle(mDC, startButton.rect.left, startButton.rect.top, startButton.rect.right, startButton.rect.bottom);
+			
+			// 게임 종료 버튼
+			if (quitButton.selected) {
+				hPen = CreatePen(0, 3, RGB(0, 0, 255));
+				hBrush = CreateSolidBrush(RGB(0, 0, 255));
+			}
+			else {
+				hPen = CreatePen(0, 3, RGB(0, 0, 50));
+				hBrush = CreateSolidBrush(RGB(0, 0, 50));
+			}
+			SelectObject(mDC, hPen);
+			SelectObject(mDC, hBrush);
+			Rectangle(mDC, quitButton.rect.left, quitButton.rect.top, quitButton.rect.right, quitButton.rect.bottom);
+			DeleteObject(hPen);
+			DeleteObject(hBrush);
 		}
+
 		// turret
 		for (int i = 0; i < turretsNum; i++) {
 			if (!turret[i].alive) continue;
@@ -1281,6 +1591,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		DeleteObject(hBrush);
 
 
+
 		BitBlt(hDC, 0, 0, rt.right, rt.bottom, mDC, 0, 0, SRCCOPY);
 		DeleteDC(mDC);
 		DeleteObject(hBitmap);
@@ -1317,7 +1628,7 @@ void GameUpdateProc(HWND hWnd)
 	mc.accX = 0, mc.accY = GRAVITY;
 
 	// ISDAMAGED 일 때 이동 불가
-	if (mc.state != ISDAMAGED || mc.state == ISDEATH) {
+	if (mc.state != ISDAMAGED && mc.state != ISDEATH) {
 
 		if (mc.state != ONWALL) {
 			// 왼쪽 이동
@@ -1397,56 +1708,59 @@ void GameUpdateProc(HWND hWnd)
 			// 주인공 상태 변화 - 점프 중
 			if (mc.state != ISSWINGING) SetCharacterState(ISJUMPING); //mc.state = ISJUMPING;
 		}
-	}
 
-	// 대쉬
-	if (mc.dash == ISDASHING) {
-		mc.dashFrame++;
+
 		// 대쉬
-		if (mc.dashDirection == FACING_LEFT) mc.accX -= MCDASHACC;
-		else mc.accX += MCDASHACC;
+		if (mc.dash == ISDASHING) {
+			mc.dashFrame++;
+			// 대쉬
+			if (mc.dashDirection == FACING_LEFT) mc.accX -= MCDASHACC;
+			else mc.accX += MCDASHACC;
 
-		if (mc.dashFrame > DASH_MAXFRAME) {
-			mc.dash = CANNOTDASH;
-			mc.isInvincible = false;
+			if (mc.dashFrame > DASH_MAXFRAME || mc.state != ISSWINGING) {
+				mc.dash = CANNOTDASH;
+				mc.isInvincible = false;
+			}
 		}
-	}
 
-	// 피격 후 무적 시간
-	if (mc.afterDamaged) {
-		mc.invincibleFrame++;
-		if (mc.invincibleFrame > INVINCIBLE_MAXFRAME) {
-			mc.isInvincible = false;
-			mc.afterDamaged = false;
+		// 피격 후 무적 시간
+		if (mc.afterDamaged) {
+			mc.invincibleFrame++;
+			if (mc.invincibleFrame > INVINCIBLE_MAXFRAME) {
+				mc.isInvincible = false;
+				mc.afterDamaged = false;
+			}
 		}
-	}
 
-	// 로프 매달려 있을 때 저항 줄임
-	float frictionX, frictionY;
-	if (mc.state == ISSWINGING) frictionX = 0.99;
-	else frictionX = 0.85;
-	if (mc.state == ISSWINGING) frictionY = 1;
-	else frictionY = 0.95;
+		// 로프 매달려 있을 때 저항 줄임
+		float frictionX, frictionY;
+		if (mc.state == ISSWINGING) frictionX = 0.99;
+		else frictionX = 0.9;
+		if (mc.state == ISSWINGING) frictionY = 1;
+		else if (mc.oldY < mc.y) frictionY = 0.95;
+		else frictionY = 1;
 
-	// 베를레 적분 위치 계산
-	if (mc.state != ONWALL) {
-		mc.x = mc.x + (mc.x - mc.oldX) * frictionX + mc.accX;
-		mc.y = mc.y + (mc.y - mc.oldY) * frictionY + mc.accY;
-	}
+		// 베를레 적분 위치 계산
+		if (mc.state != ONWALL) {
+			mc.x = mc.x + (mc.x - mc.oldX) * frictionX + mc.accX;
+			mc.y = mc.y + (mc.y - mc.oldY) * frictionY + mc.accY;
+		}
 
-	// 로프 걸려있을 때 위치 보정
-	if (mc.state == ISSWINGING) {
-		float centerX = mc.x + (MCHORIZONALSIZE / 2);
-		float centerY = mc.y + (MCVERTICALSIZE / 2);
-		float dx = centerX - anch.x;
-		float dy = centerY - anch.y;
-		float currentDist = sqrt(dx * dx + dy * dy);
-		if (currentDist > anch.length) {
-			float ratio = anch.length / currentDist;
-			float targetcenterX = anch.x + dx * ratio;
-			float targetcenterY = anch.y + dy * ratio;
-			mc.x = targetcenterX - (MCHORIZONALSIZE / 2);
-			mc.y = targetcenterY - (MCVERTICALSIZE / 2);
+
+		// 로프 걸려있을 때 위치 보정
+		if (mc.state == ISSWINGING) {
+			float centerX = mc.x + (MCHORIZONALSIZE / 2);
+			float centerY = mc.y + (MCVERTICALSIZE / 2);
+			float dx = centerX - anch.x;
+			float dy = centerY - anch.y;
+			float currentDist = sqrt(dx * dx + dy * dy);
+			if (currentDist > anch.length) {
+				float ratio = anch.length / currentDist;
+				float targetcenterX = anch.x + dx * ratio;
+				float targetcenterY = anch.y + dy * ratio;
+				mc.x = targetcenterX - (MCHORIZONALSIZE / 2);
+				mc.y = targetcenterY - (MCVERTICALSIZE / 2);
+			}
 		}
 	}
 
@@ -1608,8 +1922,8 @@ void GameUpdateProc(HWND hWnd)
 				if (1) {
 					// 총알 출발 위치 구하기
 					float centerX = trooper[i].x + (TROOPERSIZE / 2), centerY = trooper[i].y + (TROOPERSIZE / 2);
-					float shootX = centerX + (cos(trooper[i].angle) * TROOPERSIZE);
-					float shootY = centerY + (sin(trooper[i].angle) * TROOPERSIZE);
+					float shootX = centerX + (cos(trooper[i].angle) * (TROOPERSIZE / 2));
+					float shootY = centerY + (sin(trooper[i].angle) * (TROOPERSIZE / 2));
 					// 총알 발사 (7발 산탄)
 					for (int j = -3; j <= 3; j++) {
 						bullets[bulletsNum].x = shootX;
@@ -1623,7 +1937,7 @@ void GameUpdateProc(HWND hWnd)
 		}
 		else {
 			// 적이 범위 안에 들어오면 활성화
-			if (Distance(mc.x, mc.y, trooper[i].x, trooper[i].y) < ENEMY_ACTIVATEDISTANCE) {
+			if (Distance(mc.x, mc.y, trooper[i].x, trooper[i].y) < ENEMY_ACTIVATEDISTANCE && trooper[i].alive) {
 				trooper[i].activated = true;
 			}
 		}
@@ -1645,9 +1959,9 @@ void GameUpdateProc(HWND hWnd)
 			else if (turret[i].state == ENEMY_ISSHOOTING) {
 				// 총알 출발 위치 구하기
 				float centerX = turret[i].x + (TURRETSIZE / 2), centerY = turret[i].y + (TURRETSIZE / 2);
-				float shootX = centerX + (cos(turret[i].angle) * TURRETSIZE);
-				float shootY = centerY + (sin(turret[i].angle) * TURRETSIZE);
-				// 총알 발사 (프레임 당 1발씩 총 18발)
+				float shootX = centerX + (cos(turret[i].angle) * (TURRETSIZE / 2));
+				float shootY = centerY + (sin(turret[i].angle) * (TURRETSIZE / 2));
+				// 총알 발사 (프레임 당 1발씩)
 				bullets[bulletsNum].x = shootX;
 				bullets[bulletsNum].y = shootY;
 				bullets[bulletsNum].angle = turret[i].angle + (0.01 * random(gen));
@@ -1656,7 +1970,7 @@ void GameUpdateProc(HWND hWnd)
 			}
 		}
 		else {
-			if (Distance(mc.x, mc.y, turret[i].x, turret[i].y) < ENEMY_ACTIVATEDISTANCE) {
+			if (Distance(mc.x, mc.y, turret[i].x, turret[i].y) < ENEMY_ACTIVATEDISTANCE && turret[i].alive) {
 				turret[i].activated = true;
 			}
 		}
@@ -1665,7 +1979,7 @@ void GameUpdateProc(HWND hWnd)
 	// defender
 	for (int i = 0; i < defendersNum; i++) {
 		if (defender[i].activated) {
-			if (Distance(mc.x, mc.y, defender[i].x, defender[i].y) > ENEMY_ACTIVATEDISTANCE) {
+			if (Distance(mc.x, mc.y, defender[i].x, defender[i].y) > ENEMY_ACTIVATEDISTANCE && defender[i].alive) {
 				defender[i].activated = false;
 			}
 			// attackcooltime -> attack
@@ -1760,6 +2074,7 @@ void GameUpdateProc(HWND hWnd)
 	// ==================================================
 	if (mc.hp <= 0 || mc.y > PLATFORMMAXROW * PLATFORMSIZE) {
 		if (mc.state != ISDEATH) {
+			mc.hp = 0;
 			mc.state = ISSTANDING;
 			SetCharacterState(ISDEATH);
 		}
@@ -1776,8 +2091,25 @@ void GameUpdateProc(HWND hWnd)
 
 		// 마지막 프레임에 도달하면 다시 처음으로 루프
 		if (mc.currentFrame >= mc.maxFrame) {
-			if (mc.state == ISDEATH) { //죽음 상태일때는 마지막 frame에서 멈춰있도록 일단 조치. 나중에 죽은 뒤 초기화 할때 수정할 수 있음
-				mc.currentFrame = DEATH_MAXFRAME - 1;
+			if (mc.state == ISDEATH) {
+				mc.currentFrame = 0;
+
+				// 적 부활
+				for (int i = 0; i < troopersNum; i++) {
+					trooper[i].alive = true;
+				}
+				for (int i = 0; i < turretsNum; i++) {
+					turret[i].alive = true;
+				}
+				for (int i = 0; i < defendersNum; i++) {
+					defender[i].alive = true;
+				}
+				// 주인공 초기화
+				mc.x = 100, mc.y = 24900;
+				mc.oldX = mc.x, mc.oldY = mc.y;
+				mc.hp = 4;
+				mc.facingDirection = FACING_RIGHT;
+				SetCharacterState(ISSTANDING);
 			}
 			else {
 				mc.currentFrame = 0;
