@@ -1499,8 +1499,8 @@ void GameUpdateProc(HWND hWnd)
 				if (1) {
 					// 총알 출발 위치 구하기
 					float centerX = trooper[i].x + (TROOPERSIZE / 2), centerY = trooper[i].y + (TROOPERSIZE / 2);
-					float shootX = centerX + (cos(trooper[i].angle) * TROOPERSIZE);
-					float shootY = centerY + (sin(trooper[i].angle) * TROOPERSIZE);
+					float shootX = centerX + (cos(trooper[i].angle) * (TROOPERSIZE / 2));
+					float shootY = centerY + (sin(trooper[i].angle) * (TROOPERSIZE / 2));
 					// 총알 발사 (7발 산탄)
 					for (int j = -3; j <= 3; j++) {
 						bullets[bulletsNum].x = shootX;
@@ -1514,7 +1514,7 @@ void GameUpdateProc(HWND hWnd)
 		}
 		else {
 			// 적이 범위 안에 들어오면 활성화
-			if (Distance(mc.x, mc.y, trooper[i].x, trooper[i].y) < ENEMY_ACTIVATEDISTANCE) {
+			if (Distance(mc.x, mc.y, trooper[i].x, trooper[i].y) < ENEMY_ACTIVATEDISTANCE && trooper[i].alive) {
 				trooper[i].activated = true;
 			}
 		}
@@ -1536,8 +1536,8 @@ void GameUpdateProc(HWND hWnd)
 			else if (turret[i].state == ENEMY_ISSHOOTING) {
 				// 총알 출발 위치 구하기
 				float centerX = turret[i].x + (TURRETSIZE / 2), centerY = turret[i].y + (TURRETSIZE / 2);
-				float shootX = centerX + (cos(turret[i].angle) * TURRETSIZE);
-				float shootY = centerY + (sin(turret[i].angle) * TURRETSIZE);
+				float shootX = centerX + (cos(turret[i].angle) * (TURRETSIZE / 2));
+				float shootY = centerY + (sin(turret[i].angle) * (TURRETSIZE / 2));
 				// 총알 발사 (프레임 당 1발씩 총 18발)
 				bullets[bulletsNum].x = shootX;
 				bullets[bulletsNum].y = shootY;
@@ -1547,7 +1547,7 @@ void GameUpdateProc(HWND hWnd)
 			}
 		}
 		else {
-			if (Distance(mc.x, mc.y, turret[i].x, turret[i].y) < ENEMY_ACTIVATEDISTANCE) {
+			if (Distance(mc.x, mc.y, turret[i].x, turret[i].y) < ENEMY_ACTIVATEDISTANCE && turret[i].alive) {
 				turret[i].activated = true;
 			}
 		}
@@ -1556,7 +1556,7 @@ void GameUpdateProc(HWND hWnd)
 	// defender
 	for (int i = 0; i < defendersNum; i++) {
 		if (defender[i].activated) {
-			if (Distance(mc.x, mc.y, defender[i].x, defender[i].y) > ENEMY_ACTIVATEDISTANCE) {
+			if (Distance(mc.x, mc.y, defender[i].x, defender[i].y) > ENEMY_ACTIVATEDISTANCE && defender[i].alive) {
 				defender[i].activated = false;
 			}
 			// attackcooltime -> attack
@@ -1668,8 +1668,25 @@ void GameUpdateProc(HWND hWnd)
 
 		// 마지막 프레임에 도달하면 다시 처음으로 루프
 		if (mc.currentFrame >= mc.maxFrame) {
-			if (mc.state == ISDEATH) { //죽음 상태일때는 마지막 frame에서 멈춰있도록 일단 조치. 나중에 죽은 뒤 초기화 할때 수정할 수 있음
-				mc.currentFrame = DEATH_MAXFRAME - 1;
+			if (mc.state == ISDEATH) {
+				mc.currentFrame = 0;
+
+				// 적 부활
+				for (int i = 0; i < troopersNum; i++) {
+					trooper[i].alive = true;
+				}
+				for (int i = 0; i < turretsNum; i++) {
+					turret[i].alive = true;
+				}
+				for (int i = 0; i < defendersNum; i++) {
+					defender[i].alive = true;
+				}
+				// 주인공 초기화
+				mc.x = 100, mc.y = 24900;
+				mc.oldX = mc.x, mc.oldY = mc.y;
+				mc.hp = 4;
+				mc.facingDirection = FACING_RIGHT;
+				SetCharacterState(ISSTANDING);
 			}
 			else {
 				mc.currentFrame = 0;
