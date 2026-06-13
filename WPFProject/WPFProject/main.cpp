@@ -79,9 +79,9 @@ const float PI = 3.141592;
 
 #define GRAVITY 0.8
 #define MCWALLCIMBSPEED 4
-#define MCMOVESPEED 0.9
-#define MCJUMPACC 18
-#define MCDASHACC 1.3
+#define MCMOVESPEED 0.75
+#define MCJUMPACC 15
+#define MCDASHACC 1
 #define MAXROPELEN 400
 #define MAXROPESHOOTLEN 600
 
@@ -897,10 +897,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					else if (k == WALL_BOTTOM) x1 = x, y1 = y + PLATFORMSIZE, x2 = x + PLATFORMSIZE, y2 = y + PLATFORMSIZE;
 					else if (k == WALL_LEFT) x1 = x, y1 = y, x2 = x, y2 = y + PLATFORMSIZE;
 					if (platforms[i][j].type[k] == WALL_CANNOTHOOK) {
-						hPen = CreatePen(0, 2, RGB(0, 255, 0));
+						hPen = CreatePen(0, 3, RGB(0, 255, 0));
 					}
 					else if (platforms[i][j].type[k] == WALL_DAMAGE) {
-						hPen = CreatePen(0, 2, RGB(255, 0, 0));
+						hPen = CreatePen(0, 3, RGB(255, 0, 0));
 					}
 					else hPen = CreatePen(0, 0, RGB(10, 10, 10));
 					SelectObject(mDC, hPen);
@@ -917,7 +917,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					else if (k == WALL_BOTTOM) x1 = x, y1 = y + PLATFORMSIZE, x2 = x + PLATFORMSIZE, y2 = y + PLATFORMSIZE;
 					else if (k == WALL_LEFT) x1 = x, y1 = y, x2 = x, y2 = y + PLATFORMSIZE;
 					if (platforms[i][j].type[k] == WALL_CANHOOK) {
-						hPen = CreatePen(0, 2, RGB(255, 255, 0));
+						hPen = CreatePen(0, 3, RGB(255, 255, 0));
 					}
 					else hPen = CreatePen(0, 0, RGB(10, 10, 10));
 					SelectObject(mDC, hPen);
@@ -1310,10 +1310,10 @@ void GameUpdateProc(HWND hWnd)
 	// 로프 매달려 있을 때 저항 줄임
 	float frictionX, frictionY;
 	if (mc.state == ISSWINGING) frictionX = 0.99;
-	else frictionX = 0.85;
+	else frictionX = 0.9;
 	if (mc.state == ISSWINGING) frictionY = 1;
 	else if (mc.oldY < mc.y) frictionY = 0.95;
-	else frictionY = 0.99;
+	else frictionY = 1;
 
 	// 베를레 적분 위치 계산
 	if (mc.state != ONWALL) {
