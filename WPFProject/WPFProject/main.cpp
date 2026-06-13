@@ -160,7 +160,7 @@ const float PI = 3.141592;
 
 
 struct MAINCHARACTER {
-	float x, y;
+	float x, y, angle;
 	float oldX, oldY, accX, accY;
 	int hp;
 	int state;
@@ -216,6 +216,7 @@ struct MAINCHARACTER {
 		x = 100, y = 24900;
 		oldX = 100, oldY = 24900;
 		accX = 0, accY = 0;
+		angle = 0;
 		hp = 4;
 		canjump = false;
 		isGrounded = false;
@@ -927,8 +928,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						// 경로에 적이 있으면
 						if (PtInRect(&enemyRect, curP)) {
 							// 방패에 막히면
-							if (defender[i].facingDirection == FACING_LEFT && (curCol > oldCol && oldRow == curRow)
-								|| defender[i].facingDirection == FACING_RIGHT && (curCol < oldCol && oldRow == curRow)) {
+							if (defender[i].facingDirection == FACING_LEFT && (mc.angle < PI * 0.5 || mc.angle > PI * 1.5)
+								|| defender[i].facingDirection == FACING_RIGHT && (mc.angle > PI * 0.5 && mc.angle < PI * 1.5)) {
 								attackEnemy = true;
 								break;
 							}
@@ -1400,7 +1401,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			if (mc.state != ISSWINGING && mc.state != ISDEATH) {
 				float centerX = mc.x + (MCHORIZONALSIZE / 2), centerY = mc.y + (MCVERTICALSIZE / 2);
 				float dx = (mx + cam.x) - centerX, dy = (my + cam.y) - centerY;
-				float angle = atan2(dy, dx);
+				mc.angle = atan2(dy, dx);
 				float curX = centerX, curY = centerY, circleX = -1, circleY = -1;
 				int curDist = 0;
 				bool attackEnemy = false;
@@ -1448,8 +1449,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						}
 					}
 					if (attackEnemy) break;
-					curX += cos(angle) * 5;
-					curY += sin(angle) * 5;
+					curX += cos(mc.angle) * 5;
+					curY += sin(mc.angle) * 5;
 					curDist += 5;
 					// 로프 발사 최대 거리 지점 표시
 					if (curDist == MAXROPESHOOTLEN) {
@@ -1480,8 +1481,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 			// 게임 시작 버튼
 			if (startButton.selected) {
-				hPen = CreatePen(0, 3, RGB(0, 0, 255));
-				hBrush = CreateSolidBrush(RGB(0, 0, 255));
+				hPen = CreatePen(0, 3, RGB(0, 250, 255));
+				hBrush = CreateSolidBrush(RGB(0, 250, 255));
 			}
 			else {
 				hPen = CreatePen(0, 3, RGB(0, 0, 50));
@@ -1493,8 +1494,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			
 			// 게임 종료 버튼
 			if (quitButton.selected) {
-				hPen = CreatePen(0, 3, RGB(0, 0, 255));
-				hBrush = CreateSolidBrush(RGB(0, 0, 255));
+				hPen = CreatePen(0, 3, RGB(0, 250, 255));
+				hBrush = CreateSolidBrush(RGB(0, 250, 255));
 			}
 			else {
 				hPen = CreatePen(0, 3, RGB(0, 0, 50));
