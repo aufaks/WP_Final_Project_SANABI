@@ -14,6 +14,7 @@ bool gameStart = false;
 void  GameUpdateProc(HWND hWnd);
 float Distance(float x1, float y1, float x2, float y2);
 bool isOutMap(float x, float y);
+bool isInCamera(float x, float y);
 //주인공의 상태를 변경하는 함수 //상태당 애니메이션에 필요한 설정도 같이함
 void SetCharacterState(int newState);
 //효과음을 재생하기 위한 함수
@@ -159,7 +160,7 @@ const float PI = 3.141592;
 
 
 struct MAINCHARACTER {
-	float x, y;
+	float x, y, angle;
 	float oldX, oldY, accX, accY;
 	int hp;
 	int state;
@@ -215,6 +216,7 @@ struct MAINCHARACTER {
 		x = 100, y = 24900;
 		oldX = 100, oldY = 24900;
 		accX = 0, accY = 0;
+		angle = 0;
 		hp = 4;
 		canjump = false;
 		isGrounded = false;
@@ -304,7 +306,8 @@ CImage Global_TrooperBody_DeadSprites_Right[TROOPER_DEAD_MAXFRAME];
 CImage Global_TrooperBody_DeadSprites_Left[TROOPER_DEAD_MAXFRAME];
 
 struct ENEMY_TROOPER {
-	float x, y, angle;
+	float x, y, shootX, shootY, angle;
+	bool facingDirection;
 	// aiming -> ready2shoot -> shooting
 	int state;
 	bool activated, alive;
@@ -331,7 +334,7 @@ struct ENEMY_TROOPER {
 #define TERRET_DEAD_MAXFRAME 5
 
 struct ENEMY_TURRET {
-	float x, y, angle;
+	float x, y, shootX, shootY, angle;
 	int stickDirection;			// 벽에 붙어있는 방향 (어느쪽 벽에 붙어있는지)
 	/// aiming -> alert(readytoshoot) -> shooting -> cooldown
 	int state;
@@ -398,7 +401,7 @@ ANCHOR anch;
 CAMERA cam;
 PLATFORM platforms[PLATFORMMAXROW][PLATFORMMAXCOL];
 
-BULLET bullets[200];
+BULLET bullets[300];
 int bulletsNum = 0;
 
 ENEMY_TROOPER trooper[100];
@@ -857,9 +860,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			mc.isInvincible = true;
 			mc.dash = ISDASHING;
 			mc.dashFrame = 0;
-			if (keys['A']) mc.dashDirection = FACING_LEFT;
-			else if (keys['S']) mc.dashDirection = FACING_RIGHT;
-			else mc.dashDirection = mc.facingDirection;
+			mc.dashDirection = mc.facingDirection;
 		}
 		keys[wParam] = true;
 		if (mc.state == ISDAMAGED || mc.state == ISDEATH) break;
@@ -1015,8 +1016,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						// 경로에 적이 있으면
 						if (PtInRect(&enemyRect, curP)) {
 							// 방패에 막히면
-							if (defender[i].facingDirection == FACING_LEFT && (curCol > oldCol && oldRow == curRow)
-								|| defender[i].facingDirection == FACING_RIGHT && (curCol < oldCol && oldRow == curRow)) {
+							if (defender[i].facingDirection == FACING_LEFT && (mc.angle < PI * 0.5 || mc.angle > PI * 1.5)
+								|| defender[i].facingDirection == FACING_RIGHT && (mc.angle > PI * 0.5 && mc.angle < PI * 1.5)) {
 								attackEnemy = true;
 								break;
 							}
@@ -1081,8 +1082,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		break;
 	case WM_MOUSEMOVE:
-		if (gameStart) break;
 		mx = LOWORD(lParam), my = HIWORD(lParam);
+		if (gameStart) break;
+
 		POINT mp;
 		mp.x = mx, mp.y = my;
 		if (PtInRect(&startButton.rect, mp)) startButton.selected = true;
@@ -1154,7 +1156,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 							hPen = CreatePen(0, 3, RGB(0, 255, 0));
 						}
 						else if (platforms[i][j].type[k] == WALL_DAMAGE) {
-							hPen = CreatePen(0, 3, RGB(255, 0, 0));
+							hPen = CreatePen(0, 3, RGB(255, 50, 50));
 						}
 						else hPen = CreatePen(0, 0, RGB(10, 10, 10));
 						SelectObject(mDC, hPen);
@@ -1256,6 +1258,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			// ==================================================
 			// 주인공 그리기
 			// ==================================================
+			// 대쉬 이펙트
+			if (mc.dash == ISDASHING) {
+				hPen = CreatePen(0, 0, RGB(0, 250, 255));
+				hBrush = CreateSolidBrush(RGB(0, 250, 255));
+				SelectObject(mDC, hPen);
+				SelectObject(mDC, hBrush);
+				Ellipse(mDC, mc.x - cam.x, mc.y - cam.y, mc.x + MCHORIZONALSIZE - cam.x, mc.y + MCVERTICALSIZE - cam.y);
+				SelectObject(mDC, GetStockObject(BLACK_PEN));
+				SelectObject(mDC, GetStockObject(BLACK_BRUSH));
+				DeleteObject(hPen);
+				DeleteObject(hBrush);
+			}
+
+			
 			//주인공 그릴 위치
 			int posx = (int)(mc.x - cam.x);
 			int posy = (int)(mc.y - cam.y);
@@ -1426,7 +1442,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			// 주인공 HP 바 그리기
 			hPen = (HPEN)GetStockObject(NULL_PEN);
 			SelectObject(mDC, hPen);
-			hBrush = CreateSolidBrush(RGB(0, 0, 255));
+			hBrush = CreateSolidBrush(RGB(0, 250, 255));
 			SelectObject(mDC, hBrush);
 			for (int i = 0; i < mc.hp; i++) {
 				float x = mc.x - 20, y = (mc.y - 20) + (5 * i);
@@ -1453,6 +1469,63 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			}
 
 			// ==================================================
+			// 적 조준선 그리기
+			// ==================================================
+			// trooper
+			for (int i = 0; i < troopersNum; i++) {
+				if (trooper[i].activated && (trooper[i].state == ENEMY_ISAIMING || trooper[i].state == ENEMY_READYTOSHOOT)) {
+					// 선 도착지점 구하기
+					float x = trooper[i].shootX, y = trooper[i].shootY, curDist = 0;
+					while (isInCamera(x, y)) {
+						int curRow = y / PLATFORMSIZE, curCol = x / PLATFORMSIZE;
+						if (platforms[curRow][curCol].isPlatform) {
+							break;
+						}
+						x += cos(trooper[i].angle) * 5;
+						y += sin(trooper[i].angle) * 5;
+					}
+
+					// 색 정하기 ISAIMING일 때는 빨간 선, READYTOSHOOT일 때는 노란 선
+					if (trooper[i].state == ENEMY_ISAIMING) {
+						hPen = CreatePen(0, 2, RGB(255, 0, 0));
+					}
+					else if (trooper[i].state == ENEMY_READYTOSHOOT) {
+						hPen = CreatePen(0, 2, RGB(255, 255, 0));
+					}
+					SelectObject(mDC, hPen);
+					MoveToEx(mDC, trooper[i].shootX - cam.x, trooper[i].shootY - cam.y, NULL);
+					LineTo(mDC, x - cam.x, y - cam.y);
+				}
+			}
+			// turret
+			for (int i = 0; i < turretsNum; i++) {
+				if (turret[i].activated && (turret[i].state == ENEMY_ISAIMING || turret[i].state == ENEMY_READYTOSHOOT)) {
+					// 선 도착지점 구하기
+					float x = turret[i].shootX, y = turret[i].shootY, curDist = 0;
+					while (isInCamera(x, y)) {
+						int curRow = y / PLATFORMSIZE, curCol = x / PLATFORMSIZE;
+						if (platforms[curRow][curCol].isPlatform) {
+							break;
+						}
+						x += cos(turret[i].angle) * 5;
+						y += sin(turret[i].angle) * 5;
+					}
+
+					// 색 정하기 ISAIMING일 때는 빨간 선, READYTOSHOOT일 때는 노란 선
+					if (turret[i].state == ENEMY_ISAIMING) {
+						hPen = CreatePen(0, 2, RGB(255, 0, 0));
+					}
+					else if (turret[i].state == ENEMY_READYTOSHOOT) {
+						hPen = CreatePen(0, 2, RGB(255, 255, 0));
+					}
+					SelectObject(mDC, hPen);
+					MoveToEx(mDC, turret[i].shootX - cam.x, turret[i].shootY - cam.y, NULL);
+					LineTo(mDC, x - cam.x, y - cam.y);
+				}
+			}
+
+
+			// ==================================================
 			// 총알 그리기
 			// ==================================================
 			hPen = CreatePen(0, 0, RGB(255, 0, 0));
@@ -1469,6 +1542,86 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			}
 			DeleteObject(hPen);
 			DeleteObject(hBrush);
+
+			// ==================================================
+			// 주인공 조준선 그리기
+			// ==================================================
+			if (mc.state != ISSWINGING && mc.state != ISDEATH) {
+				float centerX = mc.x + (MCHORIZONALSIZE / 2), centerY = mc.y + (MCVERTICALSIZE / 2);
+				float dx = (mx + cam.x) - centerX, dy = (my + cam.y) - centerY;
+				mc.angle = atan2(dy, dx);
+				float curX = centerX, curY = centerY, circleX = -1, circleY = -1;
+				int curDist = 0;
+				bool attackEnemy = false;
+				while (isInCamera(curX, curY)) {
+					int curRow = curY / PLATFORMSIZE, curCol = curX / PLATFORMSIZE;
+					if (platforms[curRow][curCol].isPlatform) {
+						break;
+					}
+					// 적 확인
+					POINT curP = { curX,curY };
+					// trooper
+					for (int i = 0; i < troopersNum; i++) {
+						if (!trooper[i].alive) continue;
+						RECT enemyRect;
+						SetRect(&enemyRect, trooper[i].x, trooper[i].y, trooper[i].x + TROOPERSIZE, trooper[i].y + TROOPERSIZE);
+						// 경로에 적이 있으면
+						if (PtInRect(&enemyRect, curP)) {
+
+							attackEnemy = true;
+							break;
+						}
+					}
+					if (attackEnemy) break;
+					// turret
+					for (int i = 0; i < turretsNum; i++) {
+						if (!turret[i].alive) continue;
+						RECT enemyRect;
+						SetRect(&enemyRect, turret[i].x, turret[i].y, turret[i].x + TURRETSIZE, turret[i].y + TURRETSIZE);
+						// 경로에 적이 있으면
+						if (PtInRect(&enemyRect, curP)) {
+							attackEnemy = true;
+							break;
+						}
+					}
+					if (attackEnemy) break;
+					// defender
+					for (int i = 0; i < defendersNum; i++) {
+						if (!defender[i].alive) continue;
+						RECT enemyRect;
+						SetRect(&enemyRect, defender[i].x, defender[i].y, defender[i].x + DEFENDERSIZE, defender[i].y + DEFENDERSIZE);
+						// 경로에 적이 있으면
+						if (PtInRect(&enemyRect, curP)) {
+							attackEnemy = true;
+							break;
+						}
+					}
+					if (attackEnemy) break;
+					curX += cos(mc.angle) * 5;
+					curY += sin(mc.angle) * 5;
+					curDist += 5;
+					// 로프 발사 최대 거리 지점 표시
+					if (curDist == MAXROPESHOOTLEN) {
+						circleX = curX, circleY = curY;
+					}
+				}
+				SetBkMode(mDC, TRANSPARENT);
+				if (attackEnemy) {
+					hPen = CreatePen(PS_DASH, 1, RGB(255, 0, 0));
+					hBrush = CreateSolidBrush(RGB(255, 0, 0));
+				}
+				else {
+					hPen = CreatePen(PS_DASH, 1, RGB(0, 255, 255));
+					hBrush = CreateSolidBrush(RGB(0, 255, 255));
+				}
+				SelectObject(mDC, hPen);
+				SelectObject(mDC, hBrush);
+				MoveToEx(mDC, centerX - cam.x, centerY - cam.y, NULL);
+				LineTo(mDC, curX - cam.x, curY - cam.y);
+				if (circleX != -1) Ellipse(mDC, circleX - 5 - cam.x, circleY - 5 - cam.y, circleX + 5 - cam.x, circleY + 5 - cam.y);
+				DeleteObject(hPen);
+				DeleteObject(hBrush);
+			}
 		}
 		else {
 			// ===== 타이틀 화면 =====
@@ -1476,8 +1629,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 			// 게임 시작 버튼
 			if (startButton.selected) {
-				hPen = CreatePen(0, 3, RGB(0, 0, 255));
-				hBrush = CreateSolidBrush(RGB(0, 0, 255));
+				hPen = CreatePen(0, 3, RGB(0, 250, 255));
+				hBrush = CreateSolidBrush(RGB(0, 250, 255));
 			}
 			else {
 				hPen = CreatePen(0, 3, RGB(0, 0, 50));
@@ -1489,8 +1642,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			
 			// 게임 종료 버튼
 			if (quitButton.selected) {
-				hPen = CreatePen(0, 3, RGB(0, 0, 255));
-				hBrush = CreateSolidBrush(RGB(0, 0, 255));
+				hPen = CreatePen(0, 3, RGB(0, 250, 255));
+				hBrush = CreateSolidBrush(RGB(0, 250, 255));
 			}
 			else {
 				hPen = CreatePen(0, 3, RGB(0, 0, 50));
@@ -1834,8 +1987,16 @@ void GameUpdateProc(HWND hWnd)
 				if (1) {
 					// 총알 출발 위치 구하기
 					float centerX = trooper[i].x + (TROOPERSIZE / 2), centerY = trooper[i].y + (TROOPERSIZE / 2);
-					float shootX = centerX + (cos(trooper[i].angle) * (TROOPERSIZE / 2));
-					float shootY = centerY + (sin(trooper[i].angle) * (TROOPERSIZE / 2));
+					float shootX, shootY = centerY;
+					if (trooper[i].angle < PI / 2 && trooper[i].angle > PI * 1.5) {
+						trooper[i].facingDirection = FACING_LEFT;
+						shootX = centerX - TROOPER_GUNDISTANCE;
+					}
+					else {
+						trooper[i].facingDirection = FACING_RIGHT;
+						shootX = centerX + TROOPER_GUNDISTANCE;
+					}
+					trooper[i].shootX = shootX, trooper[i].shootY = shootY;
 					// 총알 발사 (7발 산탄)
 					for (int j = -3; j <= 3; j++) {
 						bullets[bulletsNum].x = shootX;
@@ -1876,8 +2037,12 @@ void GameUpdateProc(HWND hWnd)
 			else if (turret[i].state == ENEMY_ISSHOOTING) {
 				// 총알 출발 위치 구하기
 				float centerX = turret[i].x + (TURRETSIZE / 2), centerY = turret[i].y + (TURRETSIZE / 2);
-				float shootX = centerX + (cos(turret[i].angle) * (TURRETSIZE / 2));
-				float shootY = centerY + (sin(turret[i].angle) * (TURRETSIZE / 2));
+				float shootX = centerX, shootY = centerY;
+				if (turret[i].stickDirection == TURRET_TOP) shootY += TURRET_GUNDISTANCE;
+				else if (turret[i].stickDirection == TURRET_RIGHT) shootX += TURRET_GUNDISTANCE;
+				else if (turret[i].stickDirection == TURRET_BOTTOM) shootY -= TURRET_GUNDISTANCE;
+				else if (turret[i].stickDirection == TURRET_LEFT) shootX -= TURRET_GUNDISTANCE;
+				turret[i].shootX = shootX, turret[i].shootY = shootY;
 				// 총알 발사 (프레임 당 1발씩)
 				bullets[bulletsNum].x = shootX;
 				bullets[bulletsNum].y = shootY;
@@ -1944,6 +2109,12 @@ void GameUpdateProc(HWND hWnd)
 					mc.isInvincible = true;
 					mc.hp -= 1;
 				}
+				// 총알 삭제
+				for (int j = i; j < bulletsNum - 1; j++) {
+					bullets[j] = bullets[j + 1];
+				}
+				i--;
+				continue;
 			}
 
 			// 벽에 부딪히면 삭제
@@ -1974,6 +2145,12 @@ void GameUpdateProc(HWND hWnd)
 					mc.isInvincible = true;
 					mc.hp -= 1;
 				}
+				// 총알 삭제
+				for (int j = i; j < bulletsNum - 1; j++) {
+					bullets[j] = bullets[j + 1];
+				}
+				i--;
+				continue;
 			}
 
 			// 벽에 부딪히면 삭제
@@ -2144,6 +2321,11 @@ bool isOutMap(float x, float y) {
 	if (x > PLATFORMMAXCOL * PLATFORMSIZE) return true;
 	if (y > PLATFORMMAXROW * PLATFORMSIZE) return true;
 	return false;
+}
+
+bool isInCamera(float x, float y) {
+	if (x >= cam.x && x <= cam.x + cam.sizeX && y >= cam.y && y <= cam.y + cam.sizeY) return true;
+	else return false;
 }
 
 //주인공의 상태를 변경하는 함수 //상태당 애니메이션에 필요한 설정도 같이함
