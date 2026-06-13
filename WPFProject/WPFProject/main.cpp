@@ -136,8 +136,8 @@ const float PI = 3.141592;
 #define DAMAGED_MAXFRAME 5
 #define DEATH_MAXFRAME 24
 
-#define DASH_MAXFRAME 10
-#define INVINCIBLE_MAXFRAME 10
+#define DASH_MAXFRAME 40
+#define INVINCIBLE_MAXFRAME 50
 
 
 
@@ -1572,9 +1572,9 @@ void GameUpdateProc(HWND hWnd)
 				SetCharacterState(ISSTANDING);
 			}
 			if (mc.state == ISDAMAGED) {
-				SetCharacterState(ISSTANDING); //standing으로 변경
+				mc.state = ISRUNNING;
 				mc.afterDamaged = true;
-
+				mc.invincibleFrame = 0;
 			}
 		}
 
