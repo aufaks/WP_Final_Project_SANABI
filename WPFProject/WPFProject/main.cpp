@@ -770,9 +770,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			mc.isInvincible = true;
 			mc.dash = ISDASHING;
 			mc.dashFrame = 0;
-			if (keys['A']) mc.dashDirection = FACING_LEFT;
-			else if (keys['S']) mc.dashDirection = FACING_RIGHT;
-			else mc.dashDirection = mc.facingDirection;
+			mc.dashDirection = mc.facingDirection;
 		}
 		keys[wParam] = true;
 		if (mc.state == ISDAMAGED || mc.state == ISDEATH) break;
@@ -1124,6 +1122,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			// ==================================================
 			// 주인공 그리기
 			// ==================================================
+			// 대쉬 이펙트
+			if (mc.dash == ISDASHING) {
+				hPen = CreatePen(0, 0, RGB(0, 250, 255));
+				hBrush = CreateSolidBrush(RGB(0, 250, 255));
+				SelectObject(mDC, hPen);
+				SelectObject(mDC, hBrush);
+				Ellipse(mDC, mc.x - cam.x, mc.y - cam.y, mc.x + MCHORIZONALSIZE - cam.x, mc.y + MCVERTICALSIZE - cam.y);
+				SelectObject(mDC, GetStockObject(BLACK_PEN));
+				SelectObject(mDC, GetStockObject(BLACK_BRUSH));
+				DeleteObject(hPen);
+				DeleteObject(hBrush);
+			}
+
+			
 			//주인공 그릴 위치
 			int posx = (int)(mc.x - cam.x);
 			int posy = (int)(mc.y - cam.y);
@@ -1294,7 +1306,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			// 주인공 HP 바 그리기
 			hPen = (HPEN)GetStockObject(NULL_PEN);
 			SelectObject(mDC, hPen);
-			hBrush = CreateSolidBrush(RGB(0, 0, 255));
+			hBrush = CreateSolidBrush(RGB(0, 250, 255));
 			SelectObject(mDC, hBrush);
 			for (int i = 0; i < mc.hp; i++) {
 				float x = mc.x - 20, y = (mc.y - 20) + (5 * i);
