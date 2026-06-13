@@ -274,6 +274,7 @@ struct BULLET {
 
 // 가로 세로 동일 (50x50) 플랫폼 한 칸 크기
 #define TROOPERSIZE 50
+#define TROOPER_GUNDISTANCE 20
 
 //애니메이션 용
 #define MAX_ANGLEDIR 72	//360도를 몇개로 나눌 것인지. 360 / 72 = 5도 씩 회전할 수 있도록
@@ -306,9 +307,6 @@ CImage Global_TrooperBody_DeadSprites_Right[TROOPER_DEAD_MAXFRAME];
 CImage Global_TrooperBody_DeadSprites_Left[TROOPER_DEAD_MAXFRAME];
 
 struct ENEMY_TROOPER {
-
-	float x, y, angle;
-
 	float x, y, shootX, shootY, angle;
 	bool facingDirection;
 
@@ -325,10 +323,11 @@ struct ENEMY_TROOPER {
 };
 
 #define TURRETSIZE 50
-#define TERRET_TOP 0
-#define TERRET_RIGHT 1
-#define TERRET_BOTTOM 2
-#define TERRET_LEFT 3
+#define TURRET_GUNDISTANCE 20
+#define TURRET_TOP 0
+#define TURRET_RIGHT 1
+#define TURRET_BOTTOM 2
+#define TURRET_LEFT 3
 
 //애니메이션 용
 #define TERRET_ALERT_MAXFRAME 4
@@ -1992,9 +1991,6 @@ void GameUpdateProc(HWND hWnd)
 					// 총알 출발 위치 구하기
 					float centerX = trooper[i].x + (TROOPERSIZE / 2), centerY = trooper[i].y + (TROOPERSIZE / 2);
 
-					float shootX = centerX + (cos(trooper[i].angle) * (TROOPERSIZE / 2));
-					float shootY = centerY + (sin(trooper[i].angle) * (TROOPERSIZE / 2));
-
 					float shootX, shootY = centerY;
 					if (trooper[i].angle < PI / 2 && trooper[i].angle > PI * 1.5) {
 						trooper[i].facingDirection = FACING_LEFT;
@@ -2046,9 +2042,6 @@ void GameUpdateProc(HWND hWnd)
 			else if (turret[i].state == ENEMY_ISSHOOTING) {
 				// 총알 출발 위치 구하기
 				float centerX = turret[i].x + (TURRETSIZE / 2), centerY = turret[i].y + (TURRETSIZE / 2);
-
-				float shootX = centerX + (cos(turret[i].angle) * (TURRETSIZE / 2));
-				float shootY = centerY + (sin(turret[i].angle) * (TURRETSIZE / 2));
 
 				float shootX = centerX, shootY = centerY;
 				if (turret[i].stickDirection == TURRET_TOP) shootY += TURRET_GUNDISTANCE;
@@ -2280,7 +2273,7 @@ void GameUpdateProc(HWND hWnd)
 					trooper[i].animDelay = 100;
 					break;
 				case ENEMY_ISSHOOTING:
-					trooper[i].maxFramee = TROOPER_SHOOTING_MAXFRAME;
+					trooper[i].maxFrame = TROOPER_SHOOTING_MAXFRAME;
 					trooper[i].animDelay = 100;
 					break;
 				case ENEMY_DEAD:
