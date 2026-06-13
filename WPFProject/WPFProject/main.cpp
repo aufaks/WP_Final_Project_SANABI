@@ -1201,6 +1201,7 @@ void GameUpdateProc(HWND hWnd)
 		mc.invincibleFrame++;
 		if (mc.invincibleFrame > INVINCIBLE_MAXFRAME) {
 			mc.isInvincible = false;
+			mc.afterDamaged = false;
 		}
 	}
 
@@ -1569,6 +1570,11 @@ void GameUpdateProc(HWND hWnd)
 			else if (mc.state == ISLANDING) {
 
 				SetCharacterState(ISSTANDING);
+			}
+			if (mc.state == ISDAMAGED) {
+				SetCharacterState(ISSTANDING); //standing으로 변경
+				mc.afterDamaged = true;
+
 			}
 		}
 
