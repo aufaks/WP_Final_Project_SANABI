@@ -635,6 +635,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			else mc.dashDirection = mc.facingDirection;
 		}
 		keys[wParam] = true;
+		if (mc.state == ISDAMAGED || mc.state == ISDEATH) break;
 		// 주인공 상태 - 달리기 시작
 		if ((wParam == 'A' || wParam == 'D') && mc.state != ISSWINGING && mc.isGrounded) {
 			if (mc.state != ISRUNNING && mc.state != ISSTARTINGRUN) { // 이미 달리고 있거나(ISRUNNING), 출발하는 중(ISSTARTINGRUN)이 아닐 때만 상태를 바꾸도록
@@ -646,6 +647,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		break;
 	case WM_KEYUP:
 		keys[wParam] = false;
+		if (mc.state == ISDAMAGED || mc.state == ISDEATH) break;
 		// 주인공 상태 - 달리기 멈추기
 		if (wParam == 'A' && mc.facingDirection == FACING_LEFT && mc.isGrounded) {
 			if (mc.state == ISRUNNING || mc.state == ISSTARTINGRUN) { //ISSTARTINGRUN 상태일 때 또는 ISRUNNING 상태일 때도 키를 떼어도 멈출 수 있도록
@@ -1203,7 +1205,7 @@ void GameUpdateProc(HWND hWnd)
 	mc.accX = 0, mc.accY = GRAVITY;
 
 	// ISDAMAGED 일 때 이동 불가
-	if (mc.state != ISDAMAGED || mc.state == ISDEATH) {
+	if (mc.state != ISDAMAGED && mc.state != ISDEATH) {
 
 		if (mc.state != ONWALL) {
 			// 왼쪽 이동
@@ -1283,57 +1285,59 @@ void GameUpdateProc(HWND hWnd)
 			// 주인공 상태 변화 - 점프 중
 			if (mc.state != ISSWINGING) SetCharacterState(ISJUMPING); //mc.state = ISJUMPING;
 		}
-	}
 
-	// 대쉬
-	if (mc.dash == ISDASHING) {
-		mc.dashFrame++;
+
 		// 대쉬
-		if (mc.dashDirection == FACING_LEFT) mc.accX -= MCDASHACC;
-		else mc.accX += MCDASHACC;
+		if (mc.dash == ISDASHING) {
+			mc.dashFrame++;
+			// 대쉬
+			if (mc.dashDirection == FACING_LEFT) mc.accX -= MCDASHACC;
+			else mc.accX += MCDASHACC;
 
-		if (mc.dashFrame > DASH_MAXFRAME || mc.state != ISSWINGING) {
-			mc.dash = CANNOTDASH;
-			mc.isInvincible = false;
+			if (mc.dashFrame > DASH_MAXFRAME || mc.state != ISSWINGING) {
+				mc.dash = CANNOTDASH;
+				mc.isInvincible = false;
+			}
 		}
-	}
 
-	// 피격 후 무적 시간
-	if (mc.afterDamaged) {
-		mc.invincibleFrame++;
-		if (mc.invincibleFrame > INVINCIBLE_MAXFRAME) {
-			mc.isInvincible = false;
-			mc.afterDamaged = false;
+		// 피격 후 무적 시간
+		if (mc.afterDamaged) {
+			mc.invincibleFrame++;
+			if (mc.invincibleFrame > INVINCIBLE_MAXFRAME) {
+				mc.isInvincible = false;
+				mc.afterDamaged = false;
+			}
 		}
-	}
 
-	// 로프 매달려 있을 때 저항 줄임
-	float frictionX, frictionY;
-	if (mc.state == ISSWINGING) frictionX = 0.99;
-	else frictionX = 0.9;
-	if (mc.state == ISSWINGING) frictionY = 1;
-	else if (mc.oldY < mc.y) frictionY = 0.95;
-	else frictionY = 1;
+		// 로프 매달려 있을 때 저항 줄임
+		float frictionX, frictionY;
+		if (mc.state == ISSWINGING) frictionX = 0.99;
+		else frictionX = 0.9;
+		if (mc.state == ISSWINGING) frictionY = 1;
+		else if (mc.oldY < mc.y) frictionY = 0.95;
+		else frictionY = 1;
 
-	// 베를레 적분 위치 계산
-	if (mc.state != ONWALL) {
-		mc.x = mc.x + (mc.x - mc.oldX) * frictionX + mc.accX;
-		mc.y = mc.y + (mc.y - mc.oldY) * frictionY + mc.accY;
-	}
+		// 베를레 적분 위치 계산
+		if (mc.state != ONWALL) {
+			mc.x = mc.x + (mc.x - mc.oldX) * frictionX + mc.accX;
+			mc.y = mc.y + (mc.y - mc.oldY) * frictionY + mc.accY;
+		}
 
-	// 로프 걸려있을 때 위치 보정
-	if (mc.state == ISSWINGING) {
-		float centerX = mc.x + (MCHORIZONALSIZE / 2);
-		float centerY = mc.y + (MCVERTICALSIZE / 2);
-		float dx = centerX - anch.x;
-		float dy = centerY - anch.y;
-		float currentDist = sqrt(dx * dx + dy * dy);
-		if (currentDist > anch.length) {
-			float ratio = anch.length / currentDist;
-			float targetcenterX = anch.x + dx * ratio;
-			float targetcenterY = anch.y + dy * ratio;
-			mc.x = targetcenterX - (MCHORIZONALSIZE / 2);
-			mc.y = targetcenterY - (MCVERTICALSIZE / 2);
+
+		// 로프 걸려있을 때 위치 보정
+		if (mc.state == ISSWINGING) {
+			float centerX = mc.x + (MCHORIZONALSIZE / 2);
+			float centerY = mc.y + (MCVERTICALSIZE / 2);
+			float dx = centerX - anch.x;
+			float dy = centerY - anch.y;
+			float currentDist = sqrt(dx * dx + dy * dy);
+			if (currentDist > anch.length) {
+				float ratio = anch.length / currentDist;
+				float targetcenterX = anch.x + dx * ratio;
+				float targetcenterY = anch.y + dy * ratio;
+				mc.x = targetcenterX - (MCHORIZONALSIZE / 2);
+				mc.y = targetcenterY - (MCVERTICALSIZE / 2);
+			}
 		}
 	}
 
