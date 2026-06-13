@@ -851,15 +851,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		hBrush = CreateSolidBrush(RGB(100, 100, 100));
 		SelectObject(mDC, hBrush);
 		for (int i = 0; i < troopersNum; i++) {
-			Rectangle(mDC, trooper[i].x, trooper[i].y, trooper[i].x + TROOPERSIZE, trooper[i].y + TROOPERSIZE);
+			Rectangle(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
 		}
 		// turret
 		for (int i = 0; i < turretsNum; i++) {
-			Rectangle(mDC, turret[i].x, turret[i].y, turret[i].x + TURRETSIZE, turret[i].y + TURRETSIZE);
+			Rectangle(mDC, turret[i].x - cam.x, turret[i].y - cam.y, turret[i].x + TURRETSIZE - cam.x, turret[i].y + TURRETSIZE - cam.y);
 		}
 		// defender
 		for (int i = 0; i < defendersNum; i++) {
-			Rectangle(mDC, defender[i].x, defender[i].y, defender[i].x + DEFENDERSIZE, defender[i].y + DEFENDERSIZE);
+			Rectangle(mDC, defender[i].x - cam.x, defender[i].y - cam.y, defender[i].x + DEFENDERSIZE - cam.x, defender[i].y + DEFENDERSIZE - cam.y);
 		}
 
 		DeleteObject(hBrush);
@@ -1035,7 +1035,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		}//주인공 좌/우if문 끝
 
 
-			// 상태 확인용
+		// 상태 확인용
 		TCHAR tchar[10];
 		wsprintf(tchar, L"%d %d", mc.state, mc.isGrounded);
 		TextOut(mDC, 10, 10, tchar, lstrlen(tchar));
@@ -1057,10 +1057,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		SelectObject(mDC, hBrush);
 		for (int i = 0; i < bulletsNum; i++) {
 			if (bullets[i].type == BULLET_SMALL) {
-				Ellipse(mDC, bullets[i].x - BULLET_SMALL_SIZE, bullets[i].y - BULLET_SMALL_SIZE, bullets[i].x + BULLET_SMALL_SIZE, bullets[i].y + BULLET_SMALL_SIZE);
+				Ellipse(mDC, bullets[i].x - BULLET_SMALL_SIZE - cam.x, bullets[i].y - BULLET_SMALL_SIZE - cam.y, bullets[i].x + BULLET_SMALL_SIZE - cam.x, bullets[i].y + BULLET_SMALL_SIZE - cam.y);
 			}
 			else if (bullets[i].type == BULLET_BIG) {
-				Ellipse(mDC, bullets[i].x - BULLET_BIG_SIZE, bullets[i].y - BULLET_BIG_SIZE, bullets[i].x + BULLET_BIG_SIZE, bullets[i].y + BULLET_BIG_SIZE);
+				Ellipse(mDC, bullets[i].x - BULLET_BIG_SIZE - cam.x, bullets[i].y - BULLET_BIG_SIZE - cam.y, bullets[i].x + BULLET_BIG_SIZE - cam.x, bullets[i].y + BULLET_BIG_SIZE - cam.y);
 			}
 		}
 		DeleteObject(hPen);
