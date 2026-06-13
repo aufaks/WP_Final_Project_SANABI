@@ -80,8 +80,8 @@ const float PI = 3.141592;
 #define GRAVITY 0.8
 #define MCWALLCIMBSPEED 4
 #define MCMOVESPEED 0.9
-#define MCJUMPACC 20
-#define MCDASHACC 2
+#define MCJUMPACC 18
+#define MCDASHACC 1.3
 #define MAXROPELEN 400
 #define MAXROPESHOOTLEN 600
 
@@ -381,7 +381,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						defender[defendersNum].x = x;
 						defender[defendersNum].y = y - PLATFORMSIZE;
 						defender[defendersNum].activated = false;
-						defender[defendersNum].facingDirection = PlatformInfo % 10;
+						if(PlatformInfo % 10 == 2) defender[defendersNum].facingDirection = FACING_LEFT;
+						else defender[defendersNum].facingDirection = FACING_RIGHT;
 						defender[defendersNum].state = ENEMY_ISWAITING;
 						defender[defendersNum].alive = true;
 						defendersNum++;
@@ -782,6 +783,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					SetRect(&enemyRect, defender[i].x, defender[i].y, defender[i].x + DEFENDERSIZE, defender[i].y + DEFENDERSIZE);
 					// 경로에 적이 있으면
 					if (PtInRect(&enemyRect, curP)) {
+						// 방패에 막히면
+						if (defender[i].facingDirection == FACING_LEFT && (curCol > oldCol && oldRow == curRow)
+							|| defender[i].facingDirection == FACING_RIGHT && (curCol < oldCol && oldRow == curRow)) {
+							attackEnemy = true;
+							break;
+						}
 						// 적 위치로 이동
 						mc.x = defender[i].x + (DEFENDERSIZE / 2);
 						mc.y = defender[i].y;
@@ -1285,7 +1292,7 @@ void GameUpdateProc(HWND hWnd)
 		if (mc.dashDirection == FACING_LEFT) mc.accX -= MCDASHACC;
 		else mc.accX += MCDASHACC;
 
-		if (mc.dashFrame > DASH_MAXFRAME) {
+		if (mc.dashFrame > DASH_MAXFRAME || mc.state != ISSWINGING) {
 			mc.dash = CANNOTDASH;
 			mc.isInvincible = false;
 		}
@@ -1305,7 +1312,8 @@ void GameUpdateProc(HWND hWnd)
 	if (mc.state == ISSWINGING) frictionX = 0.99;
 	else frictionX = 0.85;
 	if (mc.state == ISSWINGING) frictionY = 1;
-	else frictionY = 0.95;
+	else if (mc.oldY < mc.y) frictionY = 0.95;
+	else frictionY = 0.99;
 
 	// 베를레 적분 위치 계산
 	if (mc.state != ONWALL) {
