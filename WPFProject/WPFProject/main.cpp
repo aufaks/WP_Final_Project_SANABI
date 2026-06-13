@@ -1197,6 +1197,13 @@ void GameUpdateProc(HWND hWnd)
 		}
 	}
 
+	if (mc.afterDamaged) {
+		mc.invincibleFrame++;
+		if (mc.invincibleFrame > INVINCIBLE_MAXFRAME) {
+			mc.isInvincible = false;
+		}
+	}
+
 	// 로프 매달려 있을 때 저항 줄임
 	float frictionX, frictionY;
 	if (mc.state == ISSWINGING) frictionX = 0.99;
