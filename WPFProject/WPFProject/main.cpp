@@ -1025,14 +1025,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				break;
 			}
 
-					   /*case ISHOLDING: {
-						   mc.ExHoldingBackSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-						   break;
-					   }
-					   case ISDEATH: {
-						   mc.DeathSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-						   break;
-					   }*/
+		/*	case ISHOLDING: {
+				mc.ExHoldingBackSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}*/
+			case ISDEATH: {
+				mc.DeathSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
 			default: {
 				hBrush = CreateSolidBrush(RGB(255, 0, 0));
 				SelectObject(mDC, hBrush);
@@ -1105,14 +1105,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				}
 				break;
 			}
-			/*case ISHOLDING: {
-				mc.ExHoldingBackSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				break;
-			}
+					   /*	case ISHOLDING: {
+							   mc.ExHoldingBackSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+							   break;
+						   }*/
 			case ISDEATH: {
 				mc.DeathSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
 				break;
-			}*/
+			}
 			default: {
 				hBrush = CreateSolidBrush(RGB(255, 0, 0));
 				SelectObject(mDC, hBrush);
@@ -1203,7 +1203,7 @@ void GameUpdateProc(HWND hWnd)
 	mc.accX = 0, mc.accY = GRAVITY;
 
 	// ISDAMAGED 일 때 이동 불가
-	if (mc.state != ISDAMAGED || mc.state == ISDEATH){
+	if (mc.state != ISDAMAGED || mc.state == ISDEATH) {
 
 		if (mc.state != ONWALL) {
 			// 왼쪽 이동
@@ -1447,11 +1447,11 @@ void GameUpdateProc(HWND hWnd)
 	}
 
 	// 주인공 상태 - 떨어지는 중
-	if ((mc.y - mc.oldY) > 0 && !mc.isGrounded && mc.state != ISSWINGING && mc.state != ONWALL) {
+	if ((mc.y - mc.oldY) > 0 && !mc.isGrounded && mc.state != ISSWINGING && mc.state != ONWALL && mc.state != ISDEATH) {
 		SetCharacterState(ISFALLING);//mc.state = ISFALLING;
 	}
 	// 주인공 상태 - 가만히 서있음																										//mc.state != ISSTOPPING 추가 //stopping 하고 standing하도록
-	if (abs(mc.x - mc.oldX) < 0.01f && mc.isGrounded && mc.state != ISSWINGING && mc.state != ISLANDING && mc.state != ONWALL && mc.state != ISSTOPPING) { //(mc.x - mc.oldX) == 0 --> abs(mc.x - mc.oldX)로 변경 이유 절댓값을 이용해야하고, 실수는 0이 될수 없음
+	if (abs(mc.x - mc.oldX) < 0.01f && mc.isGrounded && mc.state != ISSWINGING && mc.state != ISLANDING && mc.state != ONWALL && mc.state != ISSTOPPING && mc.state != ISDEATH) { //(mc.x - mc.oldX) == 0 --> abs(mc.x - mc.oldX)로 변경 이유 절댓값을 이용해야하고, 실수는 0이 될수 없음
 		mc.x = mc.oldX; // 미세하게 움직이는 물리 좌표를 완전히 고정
 		SetCharacterState(ISSTANDING);//mc.state = ISSTANDING;
 	}
@@ -1484,7 +1484,7 @@ void GameUpdateProc(HWND hWnd)
 				trooper[i].activated = false;
 			}
 			// aiming -> ready2shoot -> shooting
-	
+
 			// 주인공 조준
 			if (trooper[i].state == ENEMY_ISAIMING) {
 				float dx = mc.x - trooper[i].x, dy = mc.y - trooper[i].y;
@@ -1523,7 +1523,7 @@ void GameUpdateProc(HWND hWnd)
 				turret[i].activated = false;
 			}
 			// aiming -> alert -> shooting -> cooldown
-			
+
 			// 주인공 조준
 			if (turret[i].state == ENEMY_ISAIMING) {
 				float dx = mc.x - turret[i].x, dy = mc.y - turret[i].y;
@@ -1646,8 +1646,11 @@ void GameUpdateProc(HWND hWnd)
 	// 주인공의 hp가 0이 되면 - 사망
 	// ==================================================
 	if (mc.hp <= 0 || mc.y > PLATFORMMAXROW * PLATFORMSIZE) {
-		gameStart = false;
-		SetCharacterState(ISDEATH);
+		if (mc.state != ISDEATH) {
+			mc.state = ISSTANDING;
+			SetCharacterState(ISDEATH);
+		}
+		
 	}
 
 	// ==================================================
@@ -1661,24 +1664,30 @@ void GameUpdateProc(HWND hWnd)
 
 		// 마지막 프레임에 도달하면 다시 처음으로 루프
 		if (mc.currentFrame >= mc.maxFrame) {
-			mc.currentFrame = 0;
+			if (mc.state == ISDEATH) { //죽음 상태일때는 마지막 frame에서 멈춰있도록 일단 조치. 나중에 죽은 뒤 초기화 할때 수정할 수 있음
+				mc.currentFrame = DEATH_MAXFRAME - 1;
+			}
+			else {
+				mc.currentFrame = 0;
 
-			// 애니메이션이 끝나면 자동으로 다음 상태로 넘어가야 하는 상태들 처리
-			if (mc.state == ISSTARTINGRUN) {
-				SetCharacterState(ISRUNNING);
-			}
-			else if (mc.state == ISSTOPPING) {
-				SetCharacterState(ISSTANDING);
-			}
-			else if (mc.state == ISLANDING) {
+				// 애니메이션이 끝나면 자동으로 다음 상태로 넘어가야 하는 상태들 처리
+				if (mc.state == ISSTARTINGRUN) {
+					SetCharacterState(ISRUNNING);
+				}
+				else if (mc.state == ISSTOPPING) {
+					SetCharacterState(ISSTANDING);
+				}
+				else if (mc.state == ISLANDING) {
 
-				SetCharacterState(ISSTANDING);
+					SetCharacterState(ISSTANDING);
+				}
+				if (mc.state == ISDAMAGED) {
+					mc.state = ISRUNNING;
+					mc.afterDamaged = true;
+					mc.invincibleFrame = 0;
+				}
 			}
-			if (mc.state == ISDAMAGED) {
-				mc.state = ISRUNNING;
-				mc.afterDamaged = true;
-				mc.invincibleFrame = 0;
-			}
+			
 		}
 
 		//효과음 작업
@@ -1686,14 +1695,14 @@ void GameUpdateProc(HWND hWnd)
 		if (mc.state == ISRUNNING && (mc.currentFrame % 4 == 0)) {
 			PlaySFX(L"sfx_footstep");
 		}
-		if (mc.state == ONWALL && mc.climbingDirection == CLIMBING_UP ) {
+		if (mc.state == ONWALL && mc.climbingDirection == CLIMBING_UP) {
 			if (mc.currentFrame % 3 == 1) {
 				PlaySFX(L"sfx_climbup1");
 			}
-			else if (mc.currentFrame % 3== 2) {
+			else if (mc.currentFrame % 3 == 2) {
 				PlaySFX(L"sfx_climbup2");
 			}
-			
+
 		}
 		mc.lastAnimTime = currentTime; // 시간 갱신
 	}
@@ -1789,7 +1798,12 @@ void SetCharacterState(int newState)
 		mc.maxFrame = DAMAGED_MAXFRAME;
 		mc.animDelay = 100;
 		break;
+	case ISDEATH: {
+		mc.maxFrame = DEATH_MAXFRAME;
+		mc.animDelay = 100;
 	}
+	}
+
 }
 
 void PlaySFX(LPCWSTR aliasName) {
