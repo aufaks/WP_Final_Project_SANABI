@@ -259,7 +259,7 @@ struct BULLET {
 struct ENEMY_TROOPER {
 	float x, y, angle;
 	int state;
-	bool activated;
+	bool activated, alive;
 };
 
 #define TURRETSIZE 50
@@ -272,7 +272,7 @@ struct ENEMY_TURRET {
 	float x, y, angle;
 	int stickDirection;			// 벽에 붙어있는 방향 (어느쪽 벽에 붙어있는지)
 	int state;
-	bool activated;
+	bool activated, alive;
 };
 
 // 가로 세로 동일 (100x100) 플랫폼 2칸 x 2칸
@@ -284,7 +284,7 @@ struct ENEMY_DEFENDER {
 	float x, y;
 	bool facingDirection;		// 보고 있는 방향 (방패 방향)
 	int state;
-	bool activated;
+	bool activated, alive;
 };
 
 #define PLATFORMMAXROW 500
@@ -362,6 +362,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						trooper[troopersNum].y = y;
 						trooper[troopersNum].activated = false;
 						trooper[troopersNum].state = ENEMY_ISWAITING;
+						trooper[troopersNum].alive = true;
 						troopersNum++;
 					}
 					else if (PlatformInfo / 10 == 8) {
@@ -370,6 +371,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						turret[turretsNum].activated = false;
 						turret[turretsNum].stickDirection = PlatformInfo % 10;
 						turret[turretsNum].state = ENEMY_ISWAITING;
+						turret[turretsNum].alive = true;
 						turretsNum++;
 					}
 					else if (PlatformInfo / 10 == 9) {
@@ -378,6 +380,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						defender[defendersNum].activated = false;
 						defender[defendersNum].facingDirection = PlatformInfo % 10;
 						defender[defendersNum].state = ENEMY_ISWAITING;
+						defender[defendersNum].alive = true;
 						defendersNum++;
 					}
 					else {
@@ -1034,6 +1037,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			}//switch문 끝
 		}//주인공 좌/우if문 끝
 
+		// 주인공 HP 바 그리기
+		hPen = (HPEN)GetStockObject(NULL_PEN);
+		SelectObject(mDC, hPen);
+		hBrush = CreateSolidBrush(RGB(0, 0, 255));
+		SelectObject(mDC, hBrush);
+		for (int i = 0; i < mc.hp; i++) {
+			float x = mc.x - 20, y = (mc.y - 20) + (5 * i);
+			Rectangle(mDC, x - cam.x, y - cam.y, x + 10 - cam.x, y + 3 - cam.y);
+		}
+		DeleteObject(hBrush);
+		SelectObject(mDC, GetStockObject(BLACK_PEN));
 
 		// 상태 확인용
 		TCHAR tchar[10];
