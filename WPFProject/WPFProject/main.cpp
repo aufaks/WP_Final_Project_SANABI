@@ -1165,8 +1165,10 @@ void GameUpdateProc(HWND hWnd)
 			mc.x = (leftCol + 1) * PLATFORMSIZE;
 			tempX = mc.x;
 			if (keys['A'] && mc.state != ISSWINGING && platforms[topRow][leftCol].type[WALL_RIGHT] == WALL_CANHOOK) {
-				SetCharacterState(ONWALL);//mc.state = ONWALL;
-				PlaySFX(L"sfx_wallstick");
+				if (!mc.isGrounded) {
+					SetCharacterState(ONWALL);//mc.state = ONWALL;
+					PlaySFX(L"sfx_wallstick");
+				}
 			}
 				
 		}
@@ -1176,9 +1178,10 @@ void GameUpdateProc(HWND hWnd)
 			mc.x = (rightCol * PLATFORMSIZE) - MCHORIZONALSIZE;
 			tempX = mc.x;
 			if (keys['D'] && mc.state != ISSWINGING && platforms[topRow][rightCol].type[WALL_LEFT] == WALL_CANHOOK) {
-				PlaySFX(L"sfx_wallstick");
-				SetCharacterState(ONWALL);//mc.state = ONWALL;
-
+				if (!mc.isGrounded) {
+					SetCharacterState(ONWALL);//mc.state = ONWALL;
+					PlaySFX(L"sfx_wallstick");
+				}
 			}
 		}
 	}
