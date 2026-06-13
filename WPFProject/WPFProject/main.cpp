@@ -81,6 +81,7 @@ const float PI = 3.141592;
 #define MCWALLCIMBSPEED 4
 #define MCMOVESPEED 0.9
 #define MCJUMPACC 20
+#define MCDASHACC 2
 #define MAXROPELEN 400
 #define MAXROPESHOOTLEN 600
 
@@ -91,6 +92,9 @@ const float PI = 3.141592;
 #define CLIMBING_UP 1
 #define CLIMBING_DOWN 2
 
+#define CANNOTDASH 0
+#define CANDASH 1
+#define ISDASHING 2
 
 #define MCVERTICALSIZE 50	//30 //테스트로 크기 변경해봄
 #define MCHORIZONALSIZE 30	//30
@@ -132,7 +136,8 @@ const float PI = 3.141592;
 #define DAMAGED_MAXFRAME 5
 #define DEATH_MAXFRAME 24
 
-
+#define DASH_MAXFRAME 10
+#define INVINCIBLE_MAXFRAME 10
 
 
 
@@ -141,8 +146,10 @@ struct MAINCHARACTER {
 	float oldX, oldY, accX, accY;
 	int hp;
 	int state;
+	int dash;
 	int climbingDirection;
-	bool isGrounded, facingDirection, canjump, isInvincible;
+	int dashFrame, invincibleFrame;
+	bool isGrounded, facingDirection, dashDirection, canjump, isInvincible, afterDamaged;
 	//애니메이션용 변수
 	int currentFrame;     // 현재 프레임 번호
 	int maxFrame;         // 최대 프레임 수  //state에 따라 갱신됨
@@ -195,9 +202,14 @@ struct MAINCHARACTER {
 		canjump = false;
 		isGrounded = false;
 		state = ISSTANDING;
+		dash = CANDASH;
 		facingDirection = FACING_RIGHT;
+		dashDirection = facingDirection;
 		climbingDirection = NO_CLIMBING;
 		isInvincible = false;
+		dashFrame = 0;
+		invincibleFrame = 0;
+		afterDamaged = false;
 		//애니메이션용 변수
 		currentFrame = 0;
 		maxFrame = STANDING_MAXFRAME; //기본 standing(idle)의 최대 frame
@@ -348,7 +360,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						trooper[troopersNum].x = x;
 						trooper[troopersNum].y = y;
 						trooper[troopersNum].activated = false;
-						//trooper[troopersNum].state =
+						trooper[troopersNum].state = ENEMY_ISWAITING;
 						troopersNum++;
 					}
 					else if (PlatformInfo / 10 == 8) {
@@ -356,7 +368,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						turret[turretsNum].y = y;
 						turret[turretsNum].activated = false;
 						turret[turretsNum].stickDirection = PlatformInfo % 10;
-						//turret[turretsNum].state =
+						turret[turretsNum].state = ENEMY_ISWAITING;
 						turretsNum++;
 					}
 					else if (PlatformInfo / 10 == 9) {
@@ -364,7 +376,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						defender[defendersNum].y = y - PLATFORMSIZE;
 						defender[defendersNum].activated = false;
 						defender[defendersNum].facingDirection = PlatformInfo % 10;
-						//defender[defendersNum].state = 
+						defender[defendersNum].state = ENEMY_ISWAITING;
 						defendersNum++;
 					}
 					else {
@@ -601,9 +613,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		HowManyRow = cam.sizeY / PLATFORMSIZE + 2, HowManyCol = cam.sizeX / PLATFORMSIZE + 2;
 		break;
 	case WM_KEYDOWN:
+		// 점프
 		if (wParam == VK_SPACE && !keys[VK_SPACE] && (mc.isGrounded || mc.state == ONWALL)) {
-
 			mc.canjump = true;
+		}
+		// 대쉬
+		if (wParam == VK_SHIFT && mc.state == ISSWINGING && mc.dash == CANDASH) {
+			mc.isInvincible = true;
+			mc.dash = ISDASHING;
+			mc.dashFrame = 0;
+			if (keys['A']) mc.dashDirection = FACING_LEFT;
+			else if (keys['S']) mc.dashDirection = FACING_RIGHT;
+			else mc.dashDirection = mc.facingDirection;
 		}
 		keys[wParam] = true;
 		// 주인공 상태 - 달리기 시작
@@ -632,6 +653,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		break;
 	case WM_LBUTTONDOWN:			// 좌클릭
+		if (mc.state == ISDAMAGED) break;
 		mx = LOWORD(lParam), my = HIWORD(lParam);
 		{
 			float mouseX = mx + cam.x, mouseY = my + cam.y;
@@ -717,11 +739,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				mc.oldX = mc.x;
 				mc.oldY = mc.y;
 			}
+			mc.dash = CANDASH;
 			PlaySFX(L"sfx_grab");
 		}
 
 		break;
 	case WM_LBUTTONUP:
+		if (mc.state == ISDAMAGED) break;
 		if (mc.state == ISSWINGING) {
 			PlaySFX(L"sfx_return");
 			if ((mc.oldY - mc.y) > 10) SetCharacterState(ISSWINGJUMPING);//mc.state = ISSWINGJUMPING;
@@ -1077,83 +1101,100 @@ void GameUpdateProc(HWND hWnd)
 	// 가속도 설정, Y방향 중력 가속도 반영
 	mc.accX = 0, mc.accY = GRAVITY;
 
-	if (mc.state != ONWALL) {
-		// 왼쪽 이동
-		if (keys['A']) {
-			mc.facingDirection = FACING_LEFT;
-			mc.accX -= MCMOVESPEED;
-			//PlaySound(L"Resource\\Sfx\\SNB\\SFX_SNB_Footstep_Concrete B.wav", NULL, SND_FILENAME | SND_ASYNC); // (SND_ASYNC: 비동기 재생 - 소리가 끝날 때까지 프로그램이 멈추지 않음) //Resource\Sfx\SNB\SFX_SNB_Footstep_Concrete B.wav"
-			
-		}
-		// 오른쪽 이동
-		if (keys['D']) {
-			mc.facingDirection = FACING_RIGHT;
-			mc.accX += MCMOVESPEED;
-			
-		}
-	}
-	// 벽타기 중
-	if (mc.state == ONWALL) {
-		// 위 이동
-		if (keys['W']) {
-			mc.y -= MCWALLCIMBSPEED;
-			
-			mc.climbingDirection = CLIMBING_UP;
-			//애니메이션 프레임 변경
-			mc.maxFrame = WALLCLIMBUP_MAXFRAME;
-			mc.animDelay = 80;
+	// ISDAMAGED 일 때 이동 불가
+	if (mc.state != ISDAMAGED){
 
-			// 벽 끝까지 올라가면 점프
-			if ((mc.facingDirection == FACING_LEFT && (!platforms[topRow][leftCol - 1].isPlatform || platforms[topRow][leftCol - 1].type[WALL_RIGHT] != WALL_CANHOOK))
-				|| (mc.facingDirection == FACING_RIGHT && (!platforms[topRow][rightCol + 1].isPlatform || platforms[topRow][rightCol + 1].type[WALL_LEFT] != WALL_CANHOOK))) {
-				PlaySFX(L"sfx_jump");
-				mc.oldY = mc.y + MCJUMPACC;
-				mc.isGrounded = false;
-				mc.canjump = false;
+		if (mc.state != ONWALL) {
+			// 왼쪽 이동
+			if (keys['A']) {
+				mc.facingDirection = FACING_LEFT;
+				mc.accX -= MCMOVESPEED;
+				//PlaySound(L"Resource\\Sfx\\SNB\\SFX_SNB_Footstep_Concrete B.wav", NULL, SND_FILENAME | SND_ASYNC); // (SND_ASYNC: 비동기 재생 - 소리가 끝날 때까지 프로그램이 멈추지 않음) //Resource\Sfx\SNB\SFX_SNB_Footstep_Concrete B.wav"
 
-				// 주인공 상태 변화 - 점프 중
-				SetCharacterState(ISJUMPING);//mc.state = ISJUMPING;
+			}
+			// 오른쪽 이동
+			if (keys['D']) {
+				mc.facingDirection = FACING_RIGHT;
+				mc.accX += MCMOVESPEED;
+
 			}
 		}
-		// 아래 이동
-		if (keys['S']) {
-			mc.y += (MCWALLCIMBSPEED + 1);
-
-			mc.climbingDirection = CLIMBING_DOWN;
-			//애니메이션 프레임 변경
-			mc.maxFrame = WALLCLIMBDOWN_MAXFRAME;
-			mc.animDelay = 80;
-
-			// 벽 아래가 없으면 떨어짐
-			if ((mc.facingDirection == FACING_LEFT && (!platforms[topRow][leftCol - 1].isPlatform || platforms[topRow][leftCol - 1].type[WALL_RIGHT] != WALL_CANHOOK))
-				|| (mc.facingDirection == FACING_RIGHT && (!platforms[topRow][rightCol + 1].isPlatform || platforms[topRow][rightCol + 1].type[WALL_LEFT] != WALL_CANHOOK))) {
-				SetCharacterState(ISFALLING);//mc.state = ISFALLING;
-			}
-		}
-		// 벽에 붙어서 가만히 있으면
-		if (abs(mc.oldY - mc.y) < 1) {
-			mc.climbingDirection = NO_CLIMBING;
-			//애니메이션 프레임 변경
-			mc.maxFrame = 1;
-			mc.animDelay = 80;
-		}
-		tempY = mc.y;
-	}
-
-	// 점프
-	if ((mc.isGrounded || mc.state == ONWALL) && mc.canjump) {
-		PlaySFX(L"sfx_jump");
-		mc.oldY = mc.y + MCJUMPACC;
-		mc.isGrounded = false;
-		mc.canjump = false;
-
+		// 벽타기 중
 		if (mc.state == ONWALL) {
-			if (mc.facingDirection == FACING_LEFT) mc.accX += MCJUMPACC / 2;
-			if (mc.facingDirection == FACING_RIGHT) mc.accX -= MCJUMPACC / 2;
+			// 위 이동
+			if (keys['W']) {
+				mc.y -= MCWALLCIMBSPEED;
 
+				mc.climbingDirection = CLIMBING_UP;
+				//애니메이션 프레임 변경
+				mc.maxFrame = WALLCLIMBUP_MAXFRAME;
+				mc.animDelay = 80;
+
+				// 벽 끝까지 올라가면 점프
+				if ((mc.facingDirection == FACING_LEFT && (!platforms[topRow][leftCol - 1].isPlatform || platforms[topRow][leftCol - 1].type[WALL_RIGHT] != WALL_CANHOOK))
+					|| (mc.facingDirection == FACING_RIGHT && (!platforms[topRow][rightCol + 1].isPlatform || platforms[topRow][rightCol + 1].type[WALL_LEFT] != WALL_CANHOOK))) {
+					PlaySFX(L"sfx_jump");
+					mc.oldY = mc.y + MCJUMPACC;
+					mc.isGrounded = false;
+					mc.canjump = false;
+
+					// 주인공 상태 변화 - 점프 중
+					SetCharacterState(ISJUMPING);//mc.state = ISJUMPING;
+				}
+			}
+			// 아래 이동
+			if (keys['S']) {
+				mc.y += (MCWALLCIMBSPEED + 1);
+
+				mc.climbingDirection = CLIMBING_DOWN;
+				//애니메이션 프레임 변경
+				mc.maxFrame = WALLCLIMBDOWN_MAXFRAME;
+				mc.animDelay = 80;
+
+				// 벽 아래가 없으면 떨어짐
+				if ((mc.facingDirection == FACING_LEFT && (!platforms[topRow][leftCol - 1].isPlatform || platforms[topRow][leftCol - 1].type[WALL_RIGHT] != WALL_CANHOOK))
+					|| (mc.facingDirection == FACING_RIGHT && (!platforms[topRow][rightCol + 1].isPlatform || platforms[topRow][rightCol + 1].type[WALL_LEFT] != WALL_CANHOOK))) {
+					SetCharacterState(ISFALLING);//mc.state = ISFALLING;
+				}
+			}
+			// 벽에 붙어서 가만히 있으면
+			if (abs(mc.oldY - mc.y) < 1) {
+				mc.climbingDirection = NO_CLIMBING;
+				//애니메이션 프레임 변경
+				mc.maxFrame = 1;
+				mc.animDelay = 80;
+			}
+			tempY = mc.y;
 		}
-		// 주인공 상태 변화 - 점프 중
-		if (mc.state != ISSWINGING) SetCharacterState(ISJUMPING); //mc.state = ISJUMPING;
+
+		// 점프
+		if ((mc.isGrounded || mc.state == ONWALL) && mc.canjump) {
+			PlaySFX(L"sfx_jump");
+			mc.oldY = mc.y + MCJUMPACC;
+			mc.isGrounded = false;
+			mc.canjump = false;
+
+			if (mc.state == ONWALL) {
+				if (mc.facingDirection == FACING_LEFT) mc.accX += MCJUMPACC / 2;
+				if (mc.facingDirection == FACING_RIGHT) mc.accX -= MCJUMPACC / 2;
+
+			}
+			// 주인공 상태 변화 - 점프 중
+			if (mc.state != ISSWINGING) SetCharacterState(ISJUMPING); //mc.state = ISJUMPING;
+		}
+	}
+
+	// 대쉬
+	if (mc.dash == ISDASHING) {
+		mc.dashFrame++;
+		// 대쉬
+		if (mc.dashDirection == FACING_LEFT) mc.accX -= MCDASHACC;
+		else mc.accX += MCDASHACC;
+
+		if (mc.dashFrame > DASH_MAXFRAME) {
+			mc.dash = CANNOTDASH;
+			mc.isInvincible = false;
+		}
 	}
 
 	// 로프 매달려 있을 때 저항 줄임
@@ -1211,7 +1252,13 @@ void GameUpdateProc(HWND hWnd)
 					PlaySFX(L"sfx_wallstick");
 				}
 			}
-				
+			if (platforms[topRow][leftCol].type[WALL_RIGHT] == WALL_DAMAGE || platforms[bottomRow][leftCol].type[WALL_RIGHT] == WALL_DAMAGE) {
+				if (!mc.isInvincible) {
+					SetCharacterState(ISDAMAGED);
+					mc.isInvincible = true;
+					mc.hp -= 1;
+				}
+			}
 		}
 
 		// 오른쪽 벽 체크
@@ -1222,6 +1269,13 @@ void GameUpdateProc(HWND hWnd)
 				if (!mc.isGrounded) {
 					SetCharacterState(ONWALL);//mc.state = ONWALL;
 					PlaySFX(L"sfx_wallstick");
+				}
+			}
+			if (platforms[topRow][rightCol].type[WALL_LEFT] == WALL_DAMAGE || platforms[bottomRow][rightCol].type[WALL_LEFT] == WALL_DAMAGE) {
+				if (!mc.isInvincible) {
+					SetCharacterState(ISDAMAGED);
+					mc.isInvincible = true;
+					mc.hp -= 1;
 				}
 			}
 		}
@@ -1256,6 +1310,13 @@ void GameUpdateProc(HWND hWnd)
 		if (mc.state == ONWALL) {
 			SetCharacterState(ISSTANDING);//mc.state = ISSTANDING;
 		}
+		if (platforms[bottomRow][leftCol].type[WALL_TOP] == WALL_DAMAGE || platforms[bottomRow][rightCol].type[WALL_TOP] == WALL_DAMAGE) {
+			if (!mc.isInvincible) {
+				SetCharacterState(ISDAMAGED);
+				mc.isInvincible = true;
+				mc.hp -= 1;
+			}
+		}
 	}
 	else {
 		mc.isGrounded = false;
@@ -1265,6 +1326,13 @@ void GameUpdateProc(HWND hWnd)
 	if (platforms[topRow][leftCol].isPlatform || platforms[topRow][rightCol].isPlatform) {
 		mc.y = (topRow + 1) * PLATFORMSIZE;
 		tempY = mc.y;
+		if (platforms[topRow][leftCol].type[WALL_BOTTOM] == WALL_DAMAGE || platforms[topRow][rightCol].type[WALL_BOTTOM] == WALL_DAMAGE) {
+			if (!mc.isInvincible) {
+				SetCharacterState(ISDAMAGED);
+				mc.isInvincible = true;
+				mc.hp -= 1;
+			}
+		}
 	}
 
 	// 주인공 상태 - 떨어지는 중
@@ -1416,8 +1484,9 @@ void GameUpdateProc(HWND hWnd)
 			RECT bulletRect;
 			SetRect(&bulletRect, bullets[i].x - BULLET_SMALL_SIZE, bullets[i].y - BULLET_SMALL_SIZE, bullets[i].x + BULLET_SMALL_SIZE, bullets[i].y + BULLET_SMALL_SIZE);
 			if (IntersectRect(&dummy, &mcRect, &bulletRect)) {
-				if (mc.state != ISDAMAGED) {
+				if (!mc.isInvincible) {
 					SetCharacterState(ISDAMAGED);
+					mc.isInvincible = true;
 					mc.hp -= 1;
 				}
 			}
@@ -1445,8 +1514,9 @@ void GameUpdateProc(HWND hWnd)
 			RECT bulletRect;
 			SetRect(&bulletRect, bullets[i].x - BULLET_BIG_SIZE, bullets[i].y - BULLET_BIG_SIZE, bullets[i].x + BULLET_BIG_SIZE, bullets[i].y + BULLET_BIG_SIZE);
 			if (IntersectRect(&dummy, &mcRect, &bulletRect)) {
-				if (mc.state != ISDAMAGED) {
+				if (!mc.isInvincible) {
 					SetCharacterState(ISDAMAGED);
+					mc.isInvincible = true;
 					mc.hp -= 1;
 				}
 			}
@@ -1464,7 +1534,7 @@ void GameUpdateProc(HWND hWnd)
 	// ==================================================
 	// 주인공의 hp가 0이 되면 - 사망
 	// ==================================================
-	if (mc.hp <= 0) {
+	if (mc.hp <= 0 || topRow > PLATFORMMAXROW) {
 		gameStart = false;
 		// 사망 애니메이션
 	}
@@ -1532,6 +1602,9 @@ bool isOutMap(float x, float y) {
 //주인공의 상태를 변경하는 함수 //상태당 애니메이션에 필요한 설정도 같이함
 void SetCharacterState(int newState)
 {
+	// ISDAMAGED 상태일 때는 상태를 변경하지 않음
+	if (mc.state == ISDAMAGED) return;
+
 	// 이미 해당 상태라면 변경하지 않음 (프레임이 도중에 0으로 리셋되는 것 방지)
 	if (mc.state == newState) return;
 
