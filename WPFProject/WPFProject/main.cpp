@@ -268,19 +268,22 @@ struct BULLET {
 
 // 가로 세로 동일 (50x50) 플랫폼 한 칸 크기
 #define TROOPERSIZE 50
+#define TROOPER_GUNDISTANCE 20
 
 struct ENEMY_TROOPER {
 	float x, y, angle;
+	bool facingDirection;
 	// aiming -> ready2shoot -> shooting
 	int state;
 	bool activated, alive;
 };
 
 #define TURRETSIZE 50
-#define TERRET_TOP 0
-#define TERRET_RIGHT 1
-#define TERRET_BOTTOM 2
-#define TERRET_LEFT 3
+#define TURRET_GUNDISTANCE 20
+#define TURRET_TOP 0
+#define TURRET_RIGHT 1
+#define TURRET_BOTTOM 2
+#define TURRET_LEFT 3
 
 struct ENEMY_TURRET {
 	float x, y, angle;
@@ -367,8 +370,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		startButton.selected = false;
 		quitButton.selected = false;
 
-		SetRect(&startButton.rect, rt.right - 300, rt.bottom - 400, rt.right - 100, rt.bottom - 350);
-		SetRect(&quitButton.rect, rt.right - 300, rt.bottom - 300, rt.right - 100, rt.bottom - 250);
+		SetRect(&startButton.rect, rt.right - 300, rt.bottom - 300, rt.right - 100, rt.bottom - 250);
+		SetRect(&quitButton.rect, rt.right - 300, rt.bottom - 200, rt.right - 100, rt.bottom - 150);
 
 		// 맵 로딩
 		{
@@ -383,6 +386,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						trooper[troopersNum].x = x;
 						trooper[troopersNum].y = y;
 						trooper[troopersNum].activated = false;
+						trooper[troopersNum].facingDirection = FACING_LEFT;
 						trooper[troopersNum].state = ENEMY_ISWAITING;
 						trooper[troopersNum].alive = true;
 						troopersNum++;
@@ -1580,8 +1584,15 @@ void GameUpdateProc(HWND hWnd)
 				if (1) {
 					// 총알 출발 위치 구하기
 					float centerX = trooper[i].x + (TROOPERSIZE / 2), centerY = trooper[i].y + (TROOPERSIZE / 2);
-					float shootX = centerX + (cos(trooper[i].angle) * (TROOPERSIZE / 2));
-					float shootY = centerY + (sin(trooper[i].angle) * (TROOPERSIZE / 2));
+					float shootX, shootY = centerY;
+					if (trooper[i].angle < PI / 2 && trooper[i].angle > PI * 1.5) {
+						trooper[i].facingDirection = FACING_LEFT;
+						shootX = centerX - TROOPER_GUNDISTANCE;
+					}
+					else {
+						trooper[i].facingDirection = FACING_RIGHT;
+						shootX = centerX + TROOPER_GUNDISTANCE;
+					}
 					// 총알 발사 (7발 산탄)
 					for (int j = -3; j <= 3; j++) {
 						bullets[bulletsNum].x = shootX;
@@ -1617,8 +1628,11 @@ void GameUpdateProc(HWND hWnd)
 			else if (turret[i].state == ENEMY_ISSHOOTING) {
 				// 총알 출발 위치 구하기
 				float centerX = turret[i].x + (TURRETSIZE / 2), centerY = turret[i].y + (TURRETSIZE / 2);
-				float shootX = centerX + (cos(turret[i].angle) * (TURRETSIZE / 2));
-				float shootY = centerY + (sin(turret[i].angle) * (TURRETSIZE / 2));
+				float shootX = centerX, shootY = centerY;
+				if (turret[i].stickDirection == TURRET_TOP) shootY += TURRET_GUNDISTANCE;
+				else if (turret[i].stickDirection == TURRET_RIGHT) shootX += TURRET_GUNDISTANCE;
+				else if (turret[i].stickDirection == TURRET_BOTTOM) shootY -= TURRET_GUNDISTANCE;
+				else if (turret[i].stickDirection == TURRET_LEFT) shootX -= TURRET_GUNDISTANCE;
 				// 총알 발사 (프레임 당 1발씩)
 				bullets[bulletsNum].x = shootX;
 				bullets[bulletsNum].y = shootY;
