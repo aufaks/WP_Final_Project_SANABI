@@ -258,6 +258,7 @@ struct BULLET {
 
 struct ENEMY_TROOPER {
 	float x, y, angle;
+	// aiming -> ready2shoot -> shooting
 	int state;
 	bool activated, alive;
 };
@@ -271,6 +272,7 @@ struct ENEMY_TROOPER {
 struct ENEMY_TURRET {
 	float x, y, angle;
 	int stickDirection;			// 벽에 붙어있는 방향 (어느쪽 벽에 붙어있는지)
+	// aiming -> alert(readytoshoot) -> shooting -> cooldown
 	int state;
 	bool activated, alive;
 };
@@ -283,6 +285,7 @@ struct ENEMY_TURRET {
 struct ENEMY_DEFENDER {
 	float x, y;
 	bool facingDirection;		// 보고 있는 방향 (방패 방향)
+	// attackcooltime -> attack
 	int state;
 	bool activated, alive;
 };
@@ -656,7 +659,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		}
 
 		break;
-	case WM_LBUTTONDOWN:			// 좌클릭
+	case WM_LBUTTONDOWN:
+		// ==================================================
+		// 좌클릭
+		// ==================================================
 		if (mc.state == ISDAMAGED || mc.state == ISDEATH) break;
 		mx = LOWORD(lParam), my = HIWORD(lParam);
 		{
@@ -680,6 +686,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					break;
 				}
 
+				// 플랫폼 확인
 				if (platforms[curRow][curCol].isPlatform) {
 					if (curRow > oldRow) {
 						if (platforms[curRow][curCol].type[WALL_TOP] == WALL_CANHOOK) {
@@ -722,12 +729,81 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						if (platforms[curRow][curCol].type[WALL_BOTTOM] != WALL_CONNECT) break;
 					}
 				}
+
+				// 적 확인 (공격)
+				bool attackEnemy = false;
+				POINT curP = { curX,curY };
+				// trooper
+				for (int i = 0; i < troopersNum; i++) {
+					if (!trooper[i].alive) continue;
+					RECT enemyRect;
+					SetRect(&enemyRect, trooper[i].x, trooper[i].y, trooper[i].x + TROOPERSIZE, trooper[i].y + TROOPERSIZE);
+					// 경로에 적이 있으면
+					if (PtInRect(&enemyRect, curP)) {
+						// 적 위치로 이동
+						mc.x = trooper[i].x + (TROOPERSIZE / 2);
+						mc.y = trooper[i].y;
+						mc.oldX = mc.x, mc.oldY = mc.y;
+
+						// 적 사망
+						trooper[i].alive = false;
+						trooper[i].activated = false;
+						trooper[i].state = ENEMY_DEAD;
+						attackEnemy = true;
+						break;
+					}
+				}
+				if (attackEnemy) break;
+				// turret
+				for (int i = 0; i < turretsNum; i++) {
+					if (!turret[i].alive) continue;
+					RECT enemyRect;
+					SetRect(&enemyRect, turret[i].x, turret[i].y, turret[i].x + TURRETSIZE, turret[i].y + TURRETSIZE);
+					// 경로에 적이 있으면
+					if (PtInRect(&enemyRect, curP)) {
+						// 적 위치로 이동
+						mc.x = turret[i].x + (TURRETSIZE / 2);
+						mc.y = turret[i].y;
+						mc.oldX = mc.x, mc.oldY = mc.y;
+
+						// 적 사망
+						turret[i].alive = false;
+						turret[i].activated = false;
+						turret[i].state = ENEMY_DEAD;
+						attackEnemy = true;
+						break;
+					}
+				}
+				if (attackEnemy) break;
+				// defender
+				for (int i = 0; i < defendersNum; i++) {
+					if (!defender[i].alive) continue;
+					RECT enemyRect;
+					SetRect(&enemyRect, defender[i].x, defender[i].y, defender[i].x + DEFENDERSIZE, defender[i].y + DEFENDERSIZE);
+					// 경로에 적이 있으면
+					if (PtInRect(&enemyRect, curP)) {
+						// 적 위치로 이동
+						mc.x = defender[i].x + (DEFENDERSIZE / 2);
+						mc.y = defender[i].y;
+						mc.oldX = mc.x, mc.oldY = mc.y;
+
+						// 적 사망
+						defender[i].alive = false;
+						defender[i].activated = false;
+						defender[i].state = ENEMY_DEAD;
+						attackEnemy = true;
+						break;
+					}
+				}
+				if (attackEnemy) break;
+
 				curDist += step;
 				oldRow = curRow;
 				oldCol = curCol;
 			}
 		}
 
+		// 위치 보정
 		if (mc.state == ISSWINGING) {
 			float centerX = mc.x + (MCHORIZONALSIZE / 2);
 			float centerY = mc.y + (MCVERTICALSIZE / 2);
@@ -854,14 +930,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		hBrush = CreateSolidBrush(RGB(100, 100, 100));
 		SelectObject(mDC, hBrush);
 		for (int i = 0; i < troopersNum; i++) {
+			if (!trooper[i].alive) continue;
 			Rectangle(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
 		}
 		// turret
 		for (int i = 0; i < turretsNum; i++) {
+			if (!turret[i].alive) continue;
 			Rectangle(mDC, turret[i].x - cam.x, turret[i].y - cam.y, turret[i].x + TURRETSIZE - cam.x, turret[i].y + TURRETSIZE - cam.y);
 		}
 		// defender
 		for (int i = 0; i < defendersNum; i++) {
+			if (!defender[i].alive) continue;
 			Rectangle(mDC, defender[i].x - cam.x, defender[i].y - cam.y, defender[i].x + DEFENDERSIZE - cam.x, defender[i].y + DEFENDERSIZE - cam.y);
 		}
 
@@ -1212,6 +1291,7 @@ void GameUpdateProc(HWND hWnd)
 		}
 	}
 
+	// 피격 후 무적 시간
 	if (mc.afterDamaged) {
 		mc.invincibleFrame++;
 		if (mc.invincibleFrame > INVINCIBLE_MAXFRAME) {
