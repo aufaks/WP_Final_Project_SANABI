@@ -272,32 +272,56 @@ struct BULLET {
 
 // 가로 세로 동일 (50x50) 플랫폼 한 칸 크기
 #define TROOPERSIZE 50
-#define TROOPER_GUNDISTANCE 20
 
 //애니메이션 용
 #define MAX_ANGLEDIR 72	//360도를 몇개로 나눌 것인지. 360 / 72 = 5도 씩 회전할 수 있도록
 
 //애니메이션 용
-#define TROOPER_SHOOTING_MAXFRAME 7
 #define TROOPER_AIMING_MAXFRAME 4
 #define TROOPER_READY2SHOOT_MAXFRAME 6
+#define TROOPER_SHOOTING_MAXFRAME 7
 #define TROOPER_DEAD_MAXFRAME 13
 
+CImage Global_TrooperGun_AimingSprites_Right[TROOPER_AIMING_MAXFRAME];
+CImage Global_TrooperGun_AimingSprites_Left[TROOPER_AIMING_MAXFRAME];
+
+CImage Global_TrooperGun_ShootingSprites_Right[TROOPER_SHOOTING_MAXFRAME];
+CImage Global_TrooperGun_ShootingSprites_Left[TROOPER_SHOOTING_MAXFRAME];
+
+CImage Global_TrooperGun_Ready2shootSprites_Right[TROOPER_READY2SHOOT_MAXFRAME];
+CImage Global_TrooperGun_Ready2shootSprites_Left[TROOPER_READY2SHOOT_MAXFRAME];
+			  
+CImage Global_TrooperBody_AimingSprites_Right[TROOPER_AIMING_MAXFRAME];
+CImage Global_TrooperBody_AimingSprites_Left[TROOPER_AIMING_MAXFRAME];
+
+CImage Global_TrooperBody_ShootingSprites_Right[TROOPER_SHOOTING_MAXFRAME];
+CImage Global_TrooperBody_ShootingSprites_Left[TROOPER_SHOOTING_MAXFRAME];
+
+CImage Global_TrooperBody_Ready2shootSprites_Right[TROOPER_READY2SHOOT_MAXFRAME];
+CImage Global_TrooperBody_Ready2shootSprites_Left[TROOPER_READY2SHOOT_MAXFRAME];
+
+CImage Global_TrooperBody_DeadSprites_Right[TROOPER_DEAD_MAXFRAME];
+CImage Global_TrooperBody_DeadSprites_Left[TROOPER_DEAD_MAXFRAME];
 
 struct ENEMY_TROOPER {
 	float x, y, angle;
-	bool facingDirection;
 	// aiming -> ready2shoot -> shooting
 	int state;
 	bool activated, alive;
+	
+	//애니메이션용 변수
+	int currentFrame;     // 현재 프레임 번호
+	int maxFrame;         // 최대 프레임 수  //state에 따라 갱신됨
+	DWORD lastAnimTime;   // 마지막으로 프레임이 바뀐 시간
+	int animDelay;        // 프레임 전환 간격 (밀리초 단위)
+
 };
 
 #define TURRETSIZE 50
-#define TURRET_GUNDISTANCE 20
-#define TURRET_TOP 0
-#define TURRET_RIGHT 1
-#define TURRET_BOTTOM 2
-#define TURRET_LEFT 3
+#define TERRET_TOP 0
+#define TERRET_RIGHT 1
+#define TERRET_BOTTOM 2
+#define TERRET_LEFT 3
 
 //애니메이션 용
 #define TERRET_ALERT_MAXFRAME 4
@@ -316,12 +340,12 @@ struct ENEMY_TURRET {
 
 };
 
-// MAX_ANGLEDIR개의 방향(0도~350도), 맥스 프레임 애니메이션을 저장할 2차원 배열 선언	[프레임][각도] 순서로 선언
-CImage Global_TurretGun_AimingSprites	[TERRET_AIMING_MAXFRAME]	[MAX_ANGLEDIR];
-CImage Global_TurretGun_ShootingSprites	[TERRET_SHOOTING_MAXFRAME]	[MAX_ANGLEDIR];
-CImage Global_TurretGun_AlertSprites	[TERRET_ALERT_MAXFRAME]		[MAX_ANGLEDIR];
-CImage Global_TurretGun_CoolDownSprites	[TERRET_COOLDOWN_MAXFRAME]	[MAX_ANGLEDIR];
-//회전x
+
+CImage Global_TurretGun_AimingSprites	[TERRET_AIMING_MAXFRAME];
+CImage Global_TurretGun_ShootingSprites	[TERRET_SHOOTING_MAXFRAME];
+CImage Global_TurretGun_AlertSprites	[TERRET_ALERT_MAXFRAME]	;
+CImage Global_TurretGun_CoolDownSprites	[TERRET_COOLDOWN_MAXFRAME];
+
 CImage Global_TurretBody_AimingSprites[TERRET_AIMING_MAXFRAME];
 CImage Global_TurretBody_ShootingSprites[TERRET_SHOOTING_MAXFRAME];
 CImage Global_TurretBody_AlertSprites[TERRET_ALERT_MAXFRAME];
@@ -410,8 +434,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		startButton.selected = false;
 		quitButton.selected = false;
 
-		SetRect(&startButton.rect, rt.right - 300, rt.bottom - 300, rt.right - 100, rt.bottom - 250);
-		SetRect(&quitButton.rect, rt.right - 300, rt.bottom - 200, rt.right - 100, rt.bottom - 150);
+		SetRect(&startButton.rect, rt.right - 300, rt.bottom - 400, rt.right - 100, rt.bottom - 350);
+		SetRect(&quitButton.rect, rt.right - 300, rt.bottom - 300, rt.right - 100, rt.bottom - 250);
 
 		// 맵 로딩
 		{
@@ -426,9 +450,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						trooper[troopersNum].x = x;
 						trooper[troopersNum].y = y;
 						trooper[troopersNum].activated = false;
-						trooper[troopersNum].facingDirection = FACING_LEFT;
 						trooper[troopersNum].state = ENEMY_ISWAITING;
 						trooper[troopersNum].alive = true;
+						//애니메이션용 변수
+						trooper[troopersNum].currentFrame = 0;
+						trooper[troopersNum].maxFrame = TROOPER_AIMING_MAXFRAME; //기본 TERRET_AIMING_MAXFRAME의 최대 frame
+						trooper[troopersNum].animDelay = 100; //일단 0.1초
+						trooper[troopersNum].lastAnimTime = timeGetTime();
 						troopersNum++;
 					}
 					else if (PlatformInfo / 10 == 8) { //turret 초기화
@@ -439,6 +467,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						turret[turretsNum].state = ENEMY_ISWAITING;
 						turret[turretsNum].alive = true;
 						turretsNum++;
+			
 					}
 					else if (PlatformInfo / 10 == 9) { //defender 초기화
 						defender[defendersNum].x = x;
@@ -470,12 +499,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				//오른쪽
 				wsprintf(filepath, L"Resource\\MainCharacter\\standing\\right\\Spr_SNB_Idle (lp) (%d).png", i + 1); //Spr_SNB_Idle (lp) (1).png //Resource\MainCharacter\standing\right\Spr_SNB_Idle (lp) (1).png"
 				if (FAILED(mc.StandingSprites_Right[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
-					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
 				}
 				//왼쪽
 				wsprintf(filepath, L"Resource\\MainCharacter\\standing\\left\\Spr_SNB_Idle (lp) (%d).png", i + 1); //Spr_SNB_Idle (lp) (1).png //Resource\MainCharacter\standing\left\Spr_SNB_Idle (lp) (1).png"
 				if (FAILED(mc.StandingSprites_Left[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
-					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
 				}
 			}
 			if (i < RUNNING_MAXFRAME) {
@@ -651,39 +680,34 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		}//sprite load for문 끝
 
 
-		///BGM 로드 및 반복 재생		
-													//파일경로															//mp3		//별명지정		
-		mciSendString(L"open \"Resource\\bgm\\마고 최하층 브금 파트1ㅣSANABI OST ㅣ12 Welcome to Mago City Part1.mp3\" type mpegvideo alias bgm", NULL, 0, NULL); //"\Resource\bgm\마고 최하층 브금 파트1ㅣSANABI OST ㅣ12 Welcome to Mago City Part1.mp3"
-		mciSendString(L"setaudio bgm volume to 500", NULL, 0, NULL); // BGM 볼륨 50% (0 ~ 1000 사이)
-		mciSendString(L"play bgm repeat", NULL, 0, NULL); //반복재생
-		/// 효과음들 로드
-		//플랫폼에 사슬 부착(마우스 왼쪽버튼 누를때)										//wav		//별명지정	
-		mciSendString(L"open \"Resource\\Sfx\\SNB\\SFX_Grab_SNB_Concrete.wav\" type waveaudio alias sfx_grab", NULL, 0, NULL); //Resource\Sfx\SNB\SFX_Grab_SNB_Concrete.wav"
-		//사슬 되돌리기
-		mciSendString(L"open \"Resource\\Sfx\\SNB\\SFX_SNB_ReturnWtihClang.wav\" type waveaudio alias sfx_return", NULL, 0, NULL); //Resource\Sfx\SNB\SFX_SNB_ReturnWtihClang.wav"
-		//점프
-		mciSendString(L"open \"Resource\\Sfx\\SNB\\SFX_SNB_Jump.wav\" type waveaudio alias sfx_jump", NULL, 0, NULL); //Resource\Sfx\SNB\SFX_SNB_Jump.wav"
-		//벽에 붙었을때
-		mciSendString(L"open \"Resource\\Sfx\\SNB\\SFX_SNB_WallStick.wav\" type waveaudio alias sfx_wallstick", NULL, 0, NULL); //Resource\Sfx\SNB\SFX_SNB_WallStick.wav"
-		//mciSendString(L"setaudio sfx_wallstick volume to 300", NULL, 0, NULL); // wav 파일은 볼륨조절이 안된다내..
-		//벽내려가기 //재생은 아직 안함.// 1초로 길다
-		mciSendString(L"open \"Resource\\Sfx\\SNB\\SFX_SNB_RopeSliding.wav\" type waveaudio alias sfx_climbdown", NULL, 0, NULL); //Resource\Sfx\SNB\SFX_SNB_RopeSliding.wav"
-		//벽 올라가기 //재생은 아직 안함 //마찬가지로 재생시 이동이 느려진다.
-		mciSendString(L"open \"Resource\\Sfx\\SNB\\SFX_SNB_WallClimbUp (1) 1.wav\" type waveaudio alias sfx_climbup1", NULL, 0, NULL); //Resource\Sfx\SNB\SFX_SNB_WallClimbUp (1) 1.wav"
-		mciSendString(L"open \"Resource\\Sfx\\SNB\\SFX_SNB_WallClimbUp (1).wav\" type waveaudio alias sfx_climbup2", NULL, 0, NULL); //Resource\Sfx\SNB\SFX_SNB_WallClimbUp (1).wav"
-		//발자국소리
-		mciSendString(L"open \"Resource\\Sfx\\SNB\\SFX_SNB_Footstep_Concrete B.wav\" type waveaudio alias sfx_footstep", NULL, 0, NULL); //Resource\Sfx\SNB\SFX_SNB_Footstep_Concrete B.wav"
-		//착지소리
-		mciSendString(L"open \"Resource\\Sfx\\SNB\\SFX_Land_SNB_Concrete 1.wav\" type waveaudio alias sfx_land", NULL, 0, NULL); //Resource\Sfx\SNB\SFX_Land_SNB_Concrete 1.wav"
-
-
+		///BGM 로드 및 반복 재생	
+		{
+			//파일경로															//mp3		//별명지정		
+			mciSendString(L"open \"Resource\\bgm\\마고 최하층 브금 파트1ㅣSANABI OST ㅣ12 Welcome to Mago City Part1.mp3\" type mpegvideo alias bgm", NULL, 0, NULL); //"\Resource\bgm\마고 최하층 브금 파트1ㅣSANABI OST ㅣ12 Welcome to Mago City Part1.mp3"
+			mciSendString(L"setaudio bgm volume to 500", NULL, 0, NULL); // BGM 볼륨 50% (0 ~ 1000 사이)
+			mciSendString(L"play bgm repeat", NULL, 0, NULL); //반복재생
+			/// 효과음들 로드
+			//플랫폼에 사슬 부착(마우스 왼쪽버튼 누를때)										//wav		//별명지정	
+			mciSendString(L"open \"Resource\\Sfx\\SNB\\SFX_Grab_SNB_Concrete.wav\" type waveaudio alias sfx_grab", NULL, 0, NULL); //Resource\Sfx\SNB\SFX_Grab_SNB_Concrete.wav"
+			//사슬 되돌리기
+			mciSendString(L"open \"Resource\\Sfx\\SNB\\SFX_SNB_ReturnWtihClang.wav\" type waveaudio alias sfx_return", NULL, 0, NULL); //Resource\Sfx\SNB\SFX_SNB_ReturnWtihClang.wav"
+			//점프
+			mciSendString(L"open \"Resource\\Sfx\\SNB\\SFX_SNB_Jump.wav\" type waveaudio alias sfx_jump", NULL, 0, NULL); //Resource\Sfx\SNB\SFX_SNB_Jump.wav"
+			//벽에 붙었을때
+			mciSendString(L"open \"Resource\\Sfx\\SNB\\SFX_SNB_WallStick.wav\" type waveaudio alias sfx_wallstick", NULL, 0, NULL); //Resource\Sfx\SNB\SFX_SNB_WallStick.wav"
+			//mciSendString(L"setaudio sfx_wallstick volume to 300", NULL, 0, NULL); // wav 파일은 볼륨조절이 안된다내..
+			//벽내려가기 //재생은 아직 안함.// 1초로 길다
+			mciSendString(L"open \"Resource\\Sfx\\SNB\\SFX_SNB_RopeSliding.wav\" type waveaudio alias sfx_climbdown", NULL, 0, NULL); //Resource\Sfx\SNB\SFX_SNB_RopeSliding.wav"
+			//벽 올라가기 //재생은 아직 안함 //마찬가지로 재생시 이동이 느려진다.
+			mciSendString(L"open \"Resource\\Sfx\\SNB\\SFX_SNB_WallClimbUp (1) 1.wav\" type waveaudio alias sfx_climbup1", NULL, 0, NULL); //Resource\Sfx\SNB\SFX_SNB_WallClimbUp (1) 1.wav"
+			mciSendString(L"open \"Resource\\Sfx\\SNB\\SFX_SNB_WallClimbUp (1).wav\" type waveaudio alias sfx_climbup2", NULL, 0, NULL); //Resource\Sfx\SNB\SFX_SNB_WallClimbUp (1).wav"
+			//발자국소리
+			mciSendString(L"open \"Resource\\Sfx\\SNB\\SFX_SNB_Footstep_Concrete B.wav\" type waveaudio alias sfx_footstep", NULL, 0, NULL); //Resource\Sfx\SNB\SFX_SNB_Footstep_Concrete B.wav"
+			//착지소리
+			mciSendString(L"open \"Resource\\Sfx\\SNB\\SFX_Land_SNB_Concrete 1.wav\" type waveaudio alias sfx_land", NULL, 0, NULL); //Resource\Sfx\SNB\SFX_Land_SNB_Concrete 1.wav"
+		}
 		///적 이미지 로드
 		//1. 터렛 
-		//원본 애니메이션 프레임 로드(임시 배열) //회전시킬 것들
-		CImage originalTurretGun_AimingSprites[TERRET_AIMING_MAXFRAME];
-		CImage originalTurretGun_ShootingSprites[TERRET_SHOOTING_MAXFRAME];
-		CImage originalTurretGun_AlertSprites[TERRET_ALERT_MAXFRAME];
-		CImage originalTurretGun_CoolDownSprites[TERRET_COOLDOWN_MAXFRAME];
 
 		for (int i = 0; i < 30; i++) { //일단 최대 30프레임 짜리 
 
@@ -693,11 +717,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				if (FAILED(Global_TurretBody_AimingSprites[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
 					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
 				}
-				//Gun
-				wsprintf(filepath, L"Resource\\enemy\\turret\\ENE_TurretGun\\Aiming\\Spr_ENE_TurretGun_Aiming (%d).png", i + 1); //\Resource\enemy\turret\ENE_TurretGun\Aiming\Spr_ENE_TurretGun_Aiming (1).png"
-				if (FAILED(originalTurretGun_AimingSprites[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
-					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
-				}
+				////Gun
+				//wsprintf(filepath, L"Resource\\enemy\\turret\\ENE_TurretGun\\Aiming\\Spr_ENE_TurretGun_Aiming (%d).png", i + 1); //\Resource\enemy\turret\ENE_TurretGun\Aiming\Spr_ENE_TurretGun_Aiming (1).png"
+				//if (FAILED(originalTurretGun_AimingSprites[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
+				//	MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				//}
 
 			
 				
@@ -707,11 +731,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				if (FAILED(Global_TurretBody_AlertSprites[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
 					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
 				}
-				//Gun
-				wsprintf(filepath, L"Resource\\enemy\\turret\\ENE_TurretGun\\Alert\\Spr_ENE_TurretGun_Alert (lp) (%d).png", i + 1); //Resource\enemy\turret\ENE_TurretGun\Alert\Spr_ENE_TurretGun_Alert (lp) (1).png"
-				if (FAILED(originalTurretGun_AlertSprites[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
-					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
-				}
+				////Gun
+				//wsprintf(filepath, L"Resource\\enemy\\turret\\ENE_TurretGun\\Alert\\Spr_ENE_TurretGun_Alert (lp) (%d).png", i + 1); //Resource\enemy\turret\ENE_TurretGun\Alert\Spr_ENE_TurretGun_Alert (lp) (1).png"
+				//if (FAILED(originalTurretGun_AlertSprites[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
+				//	MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				//}
 			}
 			if (i < TERRET_COOLDOWN_MAXFRAME) {
 				//Body
@@ -719,11 +743,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				if (FAILED(Global_TurretBody_CoolDownSprites[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
 					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
 				}
-				//Gun
-				wsprintf(filepath, L"Resource\\enemy\\turret\\ENE_TurretGun\\Cooldown\\Spr_ENE_TurretGun_Cooldown (%d).png", i + 1); //Resource\enemy\turret\ENE_TurretGun\Cooldown\Spr_ENE_TurretGun_Cooldown (1).png"
-				if (FAILED(originalTurretGun_CoolDownSprites[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
-					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
-				}
+				////Gun
+				//wsprintf(filepath, L"Resource\\enemy\\turret\\ENE_TurretGun\\Cooldown\\Spr_ENE_TurretGun_Cooldown (%d).png", i + 1); //Resource\enemy\turret\ENE_TurretGun\Cooldown\Spr_ENE_TurretGun_Cooldown (1).png"
+				//if (FAILED(originalTurretGun_CoolDownSprites[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
+				//	MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				//}
 			}
 			if (i < TERRET_SHOOTING_MAXFRAME) {
 				//Body
@@ -731,11 +755,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				if (FAILED(Global_TurretBody_ShootingSprites[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
 					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
 				}
-				//Gun
-				wsprintf(filepath, L"Resource\\enemy\\turret\\ENE_TurretGun\\Shooting\\Spr_ENE_TurretGun_Shooting (%d).png", i + 1); //Resource\enemy\turret\ENE_TurretGun\Shooting\Spr_ENE_TurretGun_Shooting (1).png"
-				if (FAILED(originalTurretGun_ShootingSprites[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
-					MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
-				}
+				////Gun
+				//wsprintf(filepath, L"Resource\\enemy\\turret\\ENE_TurretGun\\Shooting\\Spr_ENE_TurretGun_Shooting (%d).png", i + 1); //Resource\enemy\turret\ENE_TurretGun\Shooting\Spr_ENE_TurretGun_Shooting (1).png"
+				//if (FAILED(originalTurretGun_ShootingSprites[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
+				//	MessageBox(hWnd, L"이미지를 찾을 수 없습니다.", filepath, MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				//}
 			}
 			if (i < TERRET_DEAD_MAXFRAME) {
 				//Body
@@ -748,6 +772,71 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 
 
+		}
+		//2. 트루퍼
+		for (int i = 0; i < 30; i++) {
+			if (i < TROOPER_SHOOTING_MAXFRAME) {
+				//Gun 오른
+				wsprintf(filepath, L"Resource\\enemy\\trooper\\Arm\\Shooting\\right\\Spr_ENE_TrooperArm_Shooting (%d).png", i + 1); //Resource\enemy\trooper\Arm\Shooting\right\Spr_ENE_TrooperArm_Shooting (1).png"
+				if (FAILED(Global_TrooperBody_ShootingSprites_Right[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+				//Gun 왼
+				wsprintf(filepath, L"Resource\\enemy\\trooper\\Arm\\Shooting\\left\\Spr_ENE_TrooperArm_Shooting (%d).png", i + 1); //Resource\enemy\trooper\Arm\Shooting\left\Spr_ENE_TrooperArm_Shooting (1).png"
+				if (FAILED(Global_TrooperBody_ShootingSprites_Left[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+			}
+			if (i < TROOPER_AIMING_MAXFRAME) {
+				//Gun 오른
+				wsprintf(filepath, L"Resource\\enemy\\trooper\\Arm\\Aiming\\right\\Spr_ENE_TrooperArm_Aiming (%d).png", i + 1); //Resource\enemy\trooper\Arm\Aiming\right\Spr_ENE_TrooperArm_Aiming (1).png"
+				if (FAILED(Global_TrooperGun_AimingSprites_Right[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+				//Gun 왼
+				wsprintf(filepath, L"Resource\\enemy\\trooper\\Arm\\Aiming\\left\\Spr_ENE_TrooperArm_Aiming (%d).png", i + 1); //Resource\enemy\trooper\Arm\Aiming\left\Spr_ENE_TrooperArm_Aiming (1).png"
+				if (FAILED(Global_TrooperGun_AimingSprites_Left[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+				//Body 오른
+				wsprintf(filepath, L"Resource\\enemy\\trooper\\Body\\Aiming\\right\\Spr_ENE_Trooper_Aiming (%d).png", i + 1); //Resource\enemy\trooper\Body\Aiming\right\Spr_ENE_Trooper_Aiming (1).png"
+				if (FAILED(Global_TrooperBody_AimingSprites_Right[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+				//Body 왼
+				wsprintf(filepath, L"Resource\\enemy\\trooper\\Body\\Aiming\\left\\Spr_ENE_Trooper_Aiming (%d).png", i + 1); //Resource\enemy\trooper\Body\Aiming\left\Spr_ENE_Trooper_Aiming (1).png"
+				if (FAILED(Global_TrooperBody_AimingSprites_Left[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+			}
+			if (i < TROOPER_READY2SHOOT_MAXFRAME) {
+				//Gun 오른
+				wsprintf(filepath, L"Resource\\enemy\\trooper\\Arm\\Ready2shoot\\right\\Spr_ENE_TrooperArm_Ready2Shoot (%d).png", i + 1); //Resource\enemy\trooper\Arm\Ready2shoot\right\Spr_ENE_TrooperArm_Ready2Shoot (1).png"
+				if (FAILED(Global_TrooperGun_Ready2shootSprites_Right[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+				//Gun 왼
+				wsprintf(filepath, L"Resource\\enemy\\trooper\\Arm\\Ready2shoot\\left\\Spr_ENE_TrooperArm_Ready2Shoot (%d).png", i + 1); //Resource\enemy\trooper\Arm\Ready2shoot\left\Spr_ENE_TrooperArm_Ready2Shoot (1).png"
+				if (FAILED(Global_TrooperGun_Ready2shootSprites_Left[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+
+			}
+			if (i < TROOPER_DEAD_MAXFRAME) {
+
+				//Body 오른
+				wsprintf(filepath, L"Resource\\enemy\\trooper\\Body\\Dead\\right\\Spr_ENE_Trooper_Dead (%d).png", i + 1); //\Resource\enemy\trooper\Body\Dead\right\Spr_ENE_Trooper_Dead (1).png"
+				if (FAILED(Global_TrooperBody_DeadSprites_Right[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+				//Body 왼
+				wsprintf(filepath, L"Resource\\enemy\\trooper\\Body\\Dead\\left\\Spr_ENE_Trooper_Dead (%d).png", i + 1); //Resource\enemy\trooper\Body\Aiming\left\Spr_ENE_Trooper_Dead (1).png"
+				if (FAILED(Global_TrooperBody_DeadSprites_Left[i].Load(filepath))) {//로드 경고 뛰우기 위한 방법
+					MessageBox(hWnd, filepath, L"이미지를 찾을 수 없습니다.", MB_OK); // 로드 실패 시 디버깅을 위해 경고창을 띄우도록 설정
+				}
+		
+			}
+		
 		}
 
 		break;
@@ -1101,9 +1190,55 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			// trooper
 			hBrush = CreateSolidBrush(RGB(100, 100, 100));
 			SelectObject(mDC, hBrush);
+
 			for (int i = 0; i < troopersNum; i++) {
 				if (!trooper[i].alive) continue;
-				Rectangle(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
+
+				// trooper
+#define ENEMY_ISWAITING 0
+#define ENEMY_ISAIMING 1
+#define ENEMY_READYTOSHOOT 2
+#define ENEMY_ISSHOOTING 3
+#define ENEMY_COOLDOWN 4
+#define ENEMY_DEAD 5
+				hBrush = CreateSolidBrush(RGB(100, 100, 100));
+				for (int i = 0; i < troopersNum; i++) {
+					if (!trooper[i].alive) continue;
+					int frame = trooper[i].currentFrame;
+
+					if (trooper[i].facingDirection == FACING_RIGHT) {
+						switch (trooper[i].state) {
+						case ENEMY_ISAIMING: {
+							//gun
+							[frame].Draw(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
+							//body
+							[frame].Draw(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
+							break;
+						}
+						case ENEMY_READYTOSHOOT: {
+							//gun
+							[frame].Draw(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
+							//body
+							Global_TurretBody_AimingSprites[frame].Draw(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
+							break;
+						}
+
+						default: {
+
+							
+							Rectangle(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
+
+							break;
+						}
+
+						}//switch문 끝
+					} //오른쪽 끝
+					else { //왼쪽
+
+					}
+
+				}
+			
 			}
 			// turret
 			for (int i = 0; i < turretsNum; i++) {
@@ -1190,21 +1325,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					break;
 				}
 
-						   /*	case ISHOLDING: {
-								   mc.ExHoldingBackSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-								   break;
-							   }*/
-				case ISDEATH: {
-					mc.DeathSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-					break;
-				}
-				default: {
-					hBrush = CreateSolidBrush(RGB(255, 0, 0));
-					SelectObject(mDC, hBrush);
-					Ellipse(mDC, mc.x - cam.x, mc.y - cam.y, mc.x - cam.x + MCHORIZONALSIZE, mc.y - cam.y + MCVERTICALSIZE);
-					DeleteObject(hBrush);
-					break;
-				}
+					   /*	case ISHOLDING: {
+							   mc.ExHoldingBackSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+							   break;
+						   }*/
+			case ISDEATH: {
+				mc.DeathSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
+				break;
+			}
+			default: {
+				hBrush = CreateSolidBrush(RGB(255, 0, 0));
+				SelectObject(mDC, hBrush);
+				Ellipse(mDC, mc.x - cam.x, mc.y - cam.y, mc.x - cam.x + MCHORIZONALSIZE, mc.y - cam.y + MCVERTICALSIZE);
+				DeleteObject(hBrush);
+				break;
+			}
 
 				}//switch문 끝
 			}
@@ -1367,233 +1502,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			DeleteObject(hPen);
 			DeleteObject(hBrush);
 		}
-
-		// turret
-		for (int i = 0; i < turretsNum; i++) {
-			if (!turret[i].alive) continue;
-			Rectangle(mDC, turret[i].x - cam.x, turret[i].y - cam.y, turret[i].x + TURRETSIZE - cam.x, turret[i].y + TURRETSIZE - cam.y);
-		}
-		// defender
-		for (int i = 0; i < defendersNum; i++) {
-			if (!defender[i].alive) continue;
-			Rectangle(mDC, defender[i].x - cam.x, defender[i].y - cam.y, defender[i].x + DEFENDERSIZE - cam.x, defender[i].y + DEFENDERSIZE - cam.y);
-		}
-
-		DeleteObject(hBrush);
-
-		// ==================================================
-		// 주인공 그리기
-		// ==================================================
-		//주인공 그릴 위치
-		int posx = (int)(mc.x - cam.x);
-		int posy = (int)(mc.y - cam.y);
-		//그리는 크기
-
-		//현재 프레임
-		int frame = mc.currentFrame;
-		if (mc.facingDirection == FACING_RIGHT) {
-			switch (mc.state) {
-			case ISSTANDING: {
-				mc.StandingSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				break;
-			}
-			case ISSTARTINGRUN: {
-				mc.StartRunSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				break;
-			}
-			case ISRUNNING: {
-				mc.RunningSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				//PlaySFX(L"sfx_footstep");
-				//PlaySound(L"Resource\\Sfx\\SNB\\SFX_SNB_Footstep_Concrete B.wav", NULL, SND_FILENAME | SND_ASYNC); // (SND_ASYNC: 비동기 재생 - 소리가 끝날 때까지 프로그램이 멈추지 않음) //Resource\Sfx\SNB\SFX_SNB_Footstep_Concrete B.wav"
-				break;
-			}
-			case ISSTOPPING: {
-				mc.StopRunSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				break;
-			}
-			case ISJUMPING: {
-				mc.JumpingSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				break;
-			}
-						  /*	case ISSTARTFALL: {
-								  mc.StartFallSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-								  break;
-							  }*/
-			case ISFALLING: {
-				mc.FallingSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				break;
-			}
-			case ISLANDING: {
-				mc.LandingSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				break;
-			}
-			case ISSWINGING: {
-				mc.SwingingSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				break;
-			}
-			case ISSWINGJUMPING: {
-				mc.SwingJumpingSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				break;
-			}
-			case ISDAMAGED: {
-				mc.DamagedSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				break;
-			}
-
-			case ONWALL: {
-				if (mc.climbingDirection == CLIMBING_UP) {
-					mc.ClimbUpSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				}
-				else if (mc.climbingDirection == CLIMBING_DOWN) {
-					mc.ClimbDownSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				}
-				else if (mc.climbingDirection == NO_CLIMBING) { //NO_CLIMBING
-					mc.ClimbUpSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				}
-				break;
-			}
-
-					   /*	case ISHOLDING: {
-							   mc.ExHoldingBackSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-							   break;
-						   }*/
-			case ISDEATH: {
-				mc.DeathSprites_Right[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				break;
-			}
-			default: {
-				hBrush = CreateSolidBrush(RGB(255, 0, 0));
-				SelectObject(mDC, hBrush);
-				Ellipse(mDC, mc.x - cam.x, mc.y - cam.y, mc.x - cam.x + MCHORIZONALSIZE, mc.y - cam.y + MCVERTICALSIZE);
-				DeleteObject(hBrush);
-				break;
-			}
-
-			}//switch문 끝
-		}
-		else {//왼쪽 방향
-			switch (mc.state) {
-			case ISSTANDING: {
-				mc.StandingSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				break;
-			}
-			case ISSTARTINGRUN: {
-				mc.StartRunSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				break;
-			}
-			case ISRUNNING: {
-				mc.RunningSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				//PlaySFX(L"sfx_footstep");
-				break;
-			}
-			case ISSTOPPING: {
-				mc.StopRunSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				break;
-			}
-			case ISJUMPING: {
-				mc.JumpingSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				break;
-			}
-						  /*	case ISSTARTFALL: {
-								  mc.StartFallSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-								  break;
-							  }*/
-			case ISFALLING: {
-				mc.FallingSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				break;
-			}
-			case ISLANDING: {
-				mc.LandingSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				break;
-			}
-			case ISSWINGING: {
-				mc.SwingingSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				break;
-			}
-			case ISSWINGJUMPING: {
-				mc.SwingJumpingSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				break;
-			}
-			case ISDAMAGED: {
-				mc.DamagedSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				break;
-			}
-			case ONWALL: {
-				if (mc.climbingDirection == CLIMBING_UP) {
-					mc.ClimbUpSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-					//PlaySFX(L"sfx_climbup1"); //느려짐
-					//PlaySFX(L"sfx_climbup2");
-				}
-				else if (mc.climbingDirection == CLIMBING_DOWN) {
-					mc.ClimbDownSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-					//PlaySFX(L"sfx_climbdown");
-				}
-				else if (mc.climbingDirection == NO_CLIMBING) { //NO_CLIMBING
-					mc.ClimbUpSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				}
-				break;
-			}
-					   /*	case ISHOLDING: {
-							   mc.ExHoldingBackSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-							   break;
-						   }*/
-			case ISDEATH: {
-				mc.DeathSprites_Left[frame].Draw(mDC, posx, posy, MCHORIZONALSIZE, MCVERTICALSIZE);
-				break;
-			}
-			default: {
-				hBrush = CreateSolidBrush(RGB(255, 0, 0));
-				SelectObject(mDC, hBrush);
-				Ellipse(mDC, mc.x - cam.x, mc.y - cam.y, mc.x - cam.x + MCHORIZONALSIZE, mc.y - cam.y + MCVERTICALSIZE);
-				DeleteObject(hBrush);
-				break;
-			}
-			}//switch문 끝
-		}//주인공 좌/우if문 끝
-
-		// 주인공 HP 바 그리기
-		hPen = (HPEN)GetStockObject(NULL_PEN);
-		SelectObject(mDC, hPen);
-		hBrush = CreateSolidBrush(RGB(0, 0, 255));
-		SelectObject(mDC, hBrush);
-		for (int i = 0; i < mc.hp; i++) {
-			float x = mc.x - 20, y = (mc.y - 20) + (5 * i);
-			Rectangle(mDC, x - cam.x, y - cam.y, x + 10 - cam.x, y + 3 - cam.y);
-		}
-		DeleteObject(hBrush);
-		SelectObject(mDC, GetStockObject(BLACK_PEN));
-
-		// 상태 확인용
-		TCHAR tchar[10];
-		wsprintf(tchar, L"%d %d", mc.state, mc.isGrounded);
-		TextOut(mDC, 10, 10, tchar, lstrlen(tchar));
-
-		// ==================================================
-		// 사슬 그리기
-		// ==================================================
-		if (mc.state == ISSWINGING) {
-			MoveToEx(mDC, mc.x + (MCHORIZONALSIZE / 2) - cam.x, mc.y + (MCVERTICALSIZE / 2) - cam.y, NULL);
-			LineTo(mDC, anch.x - cam.x, anch.y - cam.y);
-		}
-
-		// ==================================================
-		// 총알 그리기
-		// ==================================================
-		hPen = CreatePen(0, 0, RGB(255, 0, 0));
-		SelectObject(mDC, hPen);
-		hBrush = CreateSolidBrush(RGB(255, 255, 0));
-		SelectObject(mDC, hBrush);
-		for (int i = 0; i < bulletsNum; i++) {
-			if (bullets[i].type == BULLET_SMALL) {
-				Ellipse(mDC, bullets[i].x - BULLET_SMALL_SIZE - cam.x, bullets[i].y - BULLET_SMALL_SIZE - cam.y, bullets[i].x + BULLET_SMALL_SIZE - cam.x, bullets[i].y + BULLET_SMALL_SIZE - cam.y);
-			}
-			else if (bullets[i].type == BULLET_BIG) {
-				Ellipse(mDC, bullets[i].x - BULLET_BIG_SIZE - cam.x, bullets[i].y - BULLET_BIG_SIZE - cam.y, bullets[i].x + BULLET_BIG_SIZE - cam.x, bullets[i].y + BULLET_BIG_SIZE - cam.y);
-			}
-		}
-		DeleteObject(hPen);
-		DeleteObject(hBrush);
-
 
 
 		BitBlt(hDC, 0, 0, rt.right, rt.bottom, mDC, 0, 0, SRCCOPY);
@@ -1926,15 +1834,8 @@ void GameUpdateProc(HWND hWnd)
 				if (1) {
 					// 총알 출발 위치 구하기
 					float centerX = trooper[i].x + (TROOPERSIZE / 2), centerY = trooper[i].y + (TROOPERSIZE / 2);
-					float shootX, shootY = centerY;
-					if (trooper[i].angle < PI / 2 && trooper[i].angle > PI * 1.5) {
-						trooper[i].facingDirection = FACING_LEFT;
-						shootX = centerX - TROOPER_GUNDISTANCE;
-					}
-					else {
-						trooper[i].facingDirection = FACING_RIGHT;
-						shootX = centerX + TROOPER_GUNDISTANCE;
-					}
+					float shootX = centerX + (cos(trooper[i].angle) * (TROOPERSIZE / 2));
+					float shootY = centerY + (sin(trooper[i].angle) * (TROOPERSIZE / 2));
 					// 총알 발사 (7발 산탄)
 					for (int j = -3; j <= 3; j++) {
 						bullets[bulletsNum].x = shootX;
@@ -1950,6 +1851,11 @@ void GameUpdateProc(HWND hWnd)
 			// 적이 범위 안에 들어오면 활성화
 			if (Distance(mc.x, mc.y, trooper[i].x, trooper[i].y) < ENEMY_ACTIVATEDISTANCE && trooper[i].alive) {
 				trooper[i].activated = true;
+				//애니메이션 활성화 및 초기화
+				trooper[i].currentFrame = 0;
+				trooper[i].maxFrame = TROOPER_AIMING_MAXFRAME;
+				trooper[i].lastAnimTime = timeGetTime();
+				trooper[i].animDelay = 100;
 			}
 		}
 	}
@@ -1970,11 +1876,8 @@ void GameUpdateProc(HWND hWnd)
 			else if (turret[i].state == ENEMY_ISSHOOTING) {
 				// 총알 출발 위치 구하기
 				float centerX = turret[i].x + (TURRETSIZE / 2), centerY = turret[i].y + (TURRETSIZE / 2);
-				float shootX = centerX, shootY = centerY;
-				if (turret[i].stickDirection == TURRET_TOP) shootY += TURRET_GUNDISTANCE;
-				else if (turret[i].stickDirection == TURRET_RIGHT) shootX += TURRET_GUNDISTANCE;
-				else if (turret[i].stickDirection == TURRET_BOTTOM) shootY -= TURRET_GUNDISTANCE;
-				else if (turret[i].stickDirection == TURRET_LEFT) shootX -= TURRET_GUNDISTANCE;
+				float shootX = centerX + (cos(turret[i].angle) * (TURRETSIZE / 2));
+				float shootY = centerY + (sin(turret[i].angle) * (TURRETSIZE / 2));
 				// 총알 발사 (프레임 당 1발씩)
 				bullets[bulletsNum].x = shootX;
 				bullets[bulletsNum].y = shootY;
@@ -2164,7 +2067,68 @@ void GameUpdateProc(HWND hWnd)
 		}
 		mc.lastAnimTime = currentTime; // 시간 갱신
 	}
+	///Trooper 용
 
+	{
+		for (int i = 0; i < troopersNum; i++) { //트루퍼 개수만큼
+			// 1. 활성화되지 않은 적은 연산하지 않음 (최적화)
+			if (!trooper[i].activated) continue;
+
+			// 2. 각 트루퍼의 개별 딜레이 시간이 지났는지 체크
+			if (currentTime - trooper[i].lastAnimTime >= trooper[i].animDelay) {
+				trooper[i].currentFrame++; // 다음 프레임으로 이동
+
+				// 3. 현재 상태에 따른 최대 프레임 수(maxFrame)와 animDelay 설정
+				switch (trooper[i].state) {
+				case ENEMY_ISAIMING:
+					trooper[i].maxFrame = TROOPER_AIMING_MAXFRAME;
+					trooper[i].animDelay = 100;
+					break;
+				case ENEMY_READYTOSHOOT:
+					trooper[i].maxFrame = TROOPER_READY2SHOOT_MAXFRAME;
+					trooper[i].animDelay = 100;
+					break;
+				case ENEMY_ISSHOOTING:
+					trooper[i].maxFramee = TROOPER_SHOOTING_MAXFRAME;
+					trooper[i].animDelay = 100;
+					break;
+				case ENEMY_DEAD:
+					trooper[i].maxFrame = TROOPER_DEAD_MAXFRAME;
+					trooper[i].animDelay = 100;
+					break;
+
+				}
+
+				// 4. 마지막 프레임 도달 시 로직 (상태 전이 또는 루프)
+				if (trooper[i].currentFrame >= trooper[i].maxFrame) {
+
+					// 죽음 상태는 마지막 프레임에서 고정
+					if (trooper[i].state == ENEMY_DEAD) {
+						trooper[i].currentFrame = trooper[i].maxFrame - 1;
+					}
+					else { // aiming -> ready2shoot -> shooting
+
+						trooper[i].currentFrame = 0;
+
+						if (trooper[i].state == ENEMY_ISAIMING) {
+							trooper[i].state = ENEMY_READYTOSHOOT;
+						}
+						else if (trooper[i].state == ENEMY_READYTOSHOOT) {
+							trooper[i].state = ENEMY_READYTOSHOOT;
+						}
+						else if (trooper[i].state == ENEMY_ISSHOOTING) {
+							trooper[i].state = ENEMY_ISAIMING;
+						}
+
+					}
+
+				}
+
+				// 5. 타이머 갱신 (반드시 프레임 변경이 일어났을 때만 갱신)
+				trooper[i].lastAnimTime = currentTime;
+			}
+		}
+	}
 
 	InvalidateRect(hWnd, NULL, FALSE);
 }
