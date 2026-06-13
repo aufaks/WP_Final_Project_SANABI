@@ -306,8 +306,12 @@ CImage Global_TrooperBody_DeadSprites_Right[TROOPER_DEAD_MAXFRAME];
 CImage Global_TrooperBody_DeadSprites_Left[TROOPER_DEAD_MAXFRAME];
 
 struct ENEMY_TROOPER {
+
+	float x, y, angle;
+
 	float x, y, shootX, shootY, angle;
 	bool facingDirection;
+
 	// aiming -> ready2shoot -> shooting
 	int state;
 	bool activated, alive;
@@ -1212,16 +1216,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						switch (trooper[i].state) {
 						case ENEMY_ISAIMING: {
 							//gun
-							[frame].Draw(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
+							Global_TrooperGun_AimingSprites_Right[frame].Draw(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
 							//body
-							[frame].Draw(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
+							Global_TrooperBody_AimingSprites_Right[frame].Draw(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
 							break;
 						}
 						case ENEMY_READYTOSHOOT: {
 							//gun
-							[frame].Draw(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
+							//[frame].Draw(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
 							//body
-							Global_TurretBody_AimingSprites[frame].Draw(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
+							//Global_TurretBody_AimingSprites[frame].Draw(mDC, trooper[i].x - cam.x, trooper[i].y - cam.y, trooper[i].x + TROOPERSIZE - cam.x, trooper[i].y + TROOPERSIZE - cam.y);
 							break;
 						}
 
@@ -1987,6 +1991,10 @@ void GameUpdateProc(HWND hWnd)
 				if (1) {
 					// 총알 출발 위치 구하기
 					float centerX = trooper[i].x + (TROOPERSIZE / 2), centerY = trooper[i].y + (TROOPERSIZE / 2);
+
+					float shootX = centerX + (cos(trooper[i].angle) * (TROOPERSIZE / 2));
+					float shootY = centerY + (sin(trooper[i].angle) * (TROOPERSIZE / 2));
+
 					float shootX, shootY = centerY;
 					if (trooper[i].angle < PI / 2 && trooper[i].angle > PI * 1.5) {
 						trooper[i].facingDirection = FACING_LEFT;
@@ -1997,6 +2005,7 @@ void GameUpdateProc(HWND hWnd)
 						shootX = centerX + TROOPER_GUNDISTANCE;
 					}
 					trooper[i].shootX = shootX, trooper[i].shootY = shootY;
+
 					// 총알 발사 (7발 산탄)
 					for (int j = -3; j <= 3; j++) {
 						bullets[bulletsNum].x = shootX;
@@ -2037,12 +2046,17 @@ void GameUpdateProc(HWND hWnd)
 			else if (turret[i].state == ENEMY_ISSHOOTING) {
 				// 총알 출발 위치 구하기
 				float centerX = turret[i].x + (TURRETSIZE / 2), centerY = turret[i].y + (TURRETSIZE / 2);
+
+				float shootX = centerX + (cos(turret[i].angle) * (TURRETSIZE / 2));
+				float shootY = centerY + (sin(turret[i].angle) * (TURRETSIZE / 2));
+
 				float shootX = centerX, shootY = centerY;
 				if (turret[i].stickDirection == TURRET_TOP) shootY += TURRET_GUNDISTANCE;
 				else if (turret[i].stickDirection == TURRET_RIGHT) shootX += TURRET_GUNDISTANCE;
 				else if (turret[i].stickDirection == TURRET_BOTTOM) shootY -= TURRET_GUNDISTANCE;
 				else if (turret[i].stickDirection == TURRET_LEFT) shootX -= TURRET_GUNDISTANCE;
 				turret[i].shootX = shootX, turret[i].shootY = shootY;
+
 				// 총알 발사 (프레임 당 1발씩)
 				bullets[bulletsNum].x = shootX;
 				bullets[bulletsNum].y = shootY;
